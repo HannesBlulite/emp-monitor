@@ -50,21 +50,53 @@ python manage.py runserver 0.0.0.0:8000
 *(Note: To run on your local network, ensure `ALLOWED_HOSTS` in `server/empmonitor_server/settings.py` includes your server's local IP address or `*` for development).*
 
 ### 2. Agent Setup (Employee PC)
-1. Open the Django Dashboard, go to **Settings**, and add an new Employee. This will generate a unique **Agent Token**.
-2. Copy the `/agent` directory to the employee's machine.
-3. Edit `agent/config.json` and insert the generated token and the server's network URL:
-```json
-{
-    "server_url": "http://<YOUR_SERVER_IP>:8000",
-    "agent_token": "PASTE_THE_TOKEN_HERE",
-    "screenshot_interval_seconds": 300,
-    "activity_report_interval_seconds": 60,
-    "idle_threshold_seconds": 120
-}
-```
-4. Run the Agent:
-   * **Console Mode** (Testing): `python main.py`
-   * **Windows Service Mode**: `python service.py install` followed by `python service.py start`
+
+To deploy the agent to an employee's computer, you need to set up Python, install the required packages, configure the agent, and set it to run silently in the background.
+
+**Prerequisites on the Employee PC:**
+1. Install [Python 3.10+](https://www.python.org/downloads/windows/). **CRITICAL**: During the Python installation, you MUST check the box that says **"Add Python to PATH"**.
+2. Copy the entire `/agent` directory from this repository to a hidden or permanent location on the employee's PC (e.g., `C:\ProgramData\EmpMonitorAgent`).
+
+**Installation & Configuration:**
+1. Open the Django Dashboard on your server, go to **Settings**, and add the new Employee. This will generate a unique **Agent Token**.
+2. On the employee PC, open a command prompt (as Administrator) and navigate to the agent folder:
+   ```cmd
+   cd C:\ProgramData\EmpMonitorAgent
+   ```
+3. Install the required Python packages for the agent:
+   ```cmd
+   pip install mss requests pywin32
+   ```
+4. Configure `pywin32` for the system:
+   ```cmd
+   python Scripts\pywin32_postinstall.py -install
+   ```
+5. Edit the `config.json` file in the agent folder. Insert the generated token and your server's local network IP address:
+   ```json
+   {
+       "server_url": "http://<YOUR_SERVER_IP>:8000",
+       "agent_token": "PASTE_THE_TOKEN_HERE",
+       "screenshot_interval_seconds": 300,
+       "activity_report_interval_seconds": 60,
+       "idle_threshold_seconds": 120
+   }
+   ```
+
+**Running the Agent:**
+
+* **Option A: Testing Mode (Visible)**
+  Run this from the command prompt to see the agent's live logs and verify it's capturing/uploading data correctly:
+  ```cmd
+  python main.py
+  ```
+
+* **Option B: Production Mode (Silent Windows Service)**
+  Run these commands as Administrator to install the agent as a background Windows Service that will start automatically every time the PC boots:
+  ```cmd
+  python service.py install
+  python service.py start
+  ```
+  *(To stop or remove the service later, you can run `python service.py stop` or `python service.py remove`)*.
 
 ## Development Guidelines
 
