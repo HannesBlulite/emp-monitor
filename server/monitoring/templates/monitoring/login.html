@@ -1,0 +1,45 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — EMP Monitor</title>
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <span class="login-logo">📊</span>
+                <h1>EMP Monitor</h1>
+                <p>Employee Monitoring Dashboard</p>
+            </div>
+
+            {% if form.errors %}
+            <div class="login-error">
+                Invalid username or password. Please try again.
+            </div>
+            {% endif %}
+
+            <form method="post" class="login-form">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="id_username">Username</label>
+                    <input type="text" id="id_username" name="username" autofocus required
+                           placeholder="Enter your username">
+                </div>
+                <div class="form-group">
+                    <label for="id_password">Password</label>
+                    <input type="password" id="id_password" name="password" required
+                           placeholder="Enter your password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,58 @@
+"""
+Monitoring App — Admin Configuration
+"""
+
+from django.contrib import admin
+from .models import (
+    Employee, AgentToken, Screenshot, ActivityLog,
+    AppUsageEntry, ProductivityRule, AgentSettings,
+)
+
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ['display_name', 'employee_id', 'department', 'pc_name', 'is_active', 'created_at']
+    list_filter = ['is_active', 'department']
+    search_fields = ['display_name', 'employee_id', 'pc_name']
+
+
+@admin.register(AgentToken)
+class AgentTokenAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'token', 'created_at', 'last_used']
+    readonly_fields = ['token']
+
+
+@admin.register(Screenshot)
+class ScreenshotAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'monitor_index', 'width', 'height', 'file_size', 'captured_at']
+    list_filter = ['employee', 'monitor_index', 'captured_at']
+    date_hierarchy = 'captured_at'
+
+
+@admin.register(ActivityLog)
+class ActivityLogAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'active_seconds', 'idle_seconds', 'productivity_ratio', 'created_at']
+    list_filter = ['employee', 'created_at']
+    date_hierarchy = 'created_at'
+
+
+@admin.register(AppUsageEntry)
+class AppUsageEntryAdmin(admin.ModelAdmin):
+    list_display = ['activity_log', 'process_name', 'duration_seconds', 'timestamp']
+    list_filter = ['process_name']
+    search_fields = ['process_name', 'window_title']
+
+
+@admin.register(ProductivityRule)
+class ProductivityRuleAdmin(admin.ModelAdmin):
+    list_display = ['match_type', 'pattern', 'category', 'description']
+    list_filter = ['match_type', 'category']
+    search_fields = ['pattern', 'description']
+
+
+@admin.register(AgentSettings)
+class AgentSettingsAdmin(admin.ModelAdmin):
+    list_display = [
+        'screenshot_interval_seconds', 'activity_report_interval_seconds',
+        'idle_threshold_seconds', 'tracking_enabled', 'updated_at'
+    ]

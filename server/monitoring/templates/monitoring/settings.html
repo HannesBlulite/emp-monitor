@@ -1,0 +1,230 @@
+{% extends "monitoring/base.html" %}
+{% load static %}
+
+{% block title %}Settings — EMP Monitor{% endblock %}
+{% block nav_settings %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Settings</h1>
+</div>
+
+<div class="settings-grid">
+
+    <!-- Agent Configuration -->
+    <div class="settings-section">
+        <h2>Agent Configuration</h2>
+        <form method="post" class="settings-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_settings">
+
+            <div class="form-group">
+                <label for="screenshot_interval">Screenshot Interval (seconds)</label>
+                <input type="number" id="screenshot_interval" name="screenshot_interval"
+                       value="{{ settings.screenshot_interval_seconds }}" min="30" max="3600">
+                <span class="form-hint">How often screenshots are captured. Default: 300 (5 min)</span>
+            </div>
+
+            <div class="form-group">
+                <label for="activity_interval">Activity Report Interval (seconds)</label>
+                <input type="number" id="activity_interval" name="activity_interval"
+                       value="{{ settings.activity_report_interval_seconds }}" min="15" max="600">
+                <span class="form-hint">How often activity data is reported. Default: 60 (1 min)</span>
+            </div>
+
+            <div class="form-group">
+                <label for="idle_threshold">Idle Threshold (seconds)</label>
+                <input type="number" id="idle_threshold" name="idle_threshold"
+                       value="{{ settings.idle_threshold_seconds }}" min="30" max="600">
+                <span class="form-hint">Seconds of no input before marking as idle. Default: 120 (2 min)</span>
+            </div>
+
+            <div class="form-group">
+                <label for="screenshot_quality">Screenshot Quality (1-100)</label>
+                <input type="number" id="screenshot_quality" name="screenshot_quality"
+                       value="{{ settings.screenshot_quality }}" min="1" max="100">
+                <span class="form-hint">JPEG compression quality. Lower = smaller files. Default: 60</span>
+            </div>
+
+            <div class="form-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="tracking_enabled"
+                           {% if settings.tracking_enabled %}checked{% endif %}>
+                    Tracking Enabled (master switch)
+                </label>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Save Settings</button>
+        </form>
+    </div>
+
+    <!-- Employee Management -->
+    <div class="settings-section">
+        <h2>Employees & Agent Tokens</h2>
+
+        <!-- Add Employee Form -->
+        <form method="post" class="settings-form add-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_employee">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="emp_id">Employee ID</label>
+                    <input type="text" id="emp_id" name="emp_id" required placeholder="e.g. EMP001">
+                </div>
+                <div class="form-group">
+                    <label for="emp_name">Display Name</label>
+                    <input type="text" id="emp_name" name="emp_name" required placeholder="e.g. John Smith">
+                </div>
+                <div class="form-group">
+                    <label for="emp_department">Department</label>
+                    <input type="text" id="emp_department" name="emp_department" placeholder="e.g. Sales">
+                </div>
+                <div class="form-group">
+                    <label for="emp_pc_name">PC Name</label>
+                    <input type="text" id="emp_pc_name" name="emp_pc_name" placeholder="e.g. PC-SALES-01">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-success">Add Employee</button>
+        </form>
+
+        <!-- Employee Token List -->
+        {% if employee_tokens %}
+        <div class="token-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>Agent Token</th>
+                        <th>Last Connected</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in employee_tokens %}
+                    <tr>
+                        <td>{{ item.employee.display_name }}</td>
+                        <td>{{ item.employee.department|default:"—" }}</td>
+                        <td>
+                            <code class="token-code" id="token-{{ item.employee.pk }}">{{ item.token }}</code>
+                            <button class="btn btn-xs btn-outline" onclick="copyToken('token-{{ item.employee.pk }}')">Copy</button>
+                        </td>
+                        <td>{{ item.last_used|default:"Never" }}</td>
+                        <td>
+                            <form method="post" style="display:inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="regenerate_token">
+                                <input type="hidden" name="employee_pk" value="{{ item.employee.pk }}">
+                                <button type="submit" class="btn btn-xs btn-warning"
+                                        onclick="return confirm('Regenerate token? The agent config.json on this employee\'s PC will need to be updated.')">
+                                    Regenerate
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Productivity Rules -->
+    <div class="settings-section">
+        <h2>Productivity Rules</h2>
+        <p class="section-desc">Define which websites and applications are productive, unproductive, or neutral.</p>
+
+        <!-- Add Rule Form -->
+        <form method="post" class="settings-form add-form">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_rule">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="match_type">Type</label>
+                    <select id="match_type" name="match_type">
+                        <option value="domain">Website Domain</option>
+                        <option value="app">Application</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="pattern">Pattern</label>
+                    <input type="text" id="pattern" name="pattern" required
+                           placeholder="e.g. github.com or code.exe">
+                </div>
+                <div class="form-group">
+                    <label for="category">Category</label>
+                    <select id="category" name="category">
+                        <option value="productive">✅ Productive</option>
+                        <option value="unproductive">❌ Unproductive</option>
+                        <option value="neutral">⚪ Neutral</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <input type="text" id="description" name="description" placeholder="Optional note">
+                </div>
+            </div>
+            <button type="submit" class="btn btn-success">Add Rule</button>
+        </form>
+
+        <!-- Rules Table -->
+        {% if rules %}
+        <div class="rules-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Pattern</th>
+                        <th>Category</th>
+                        <th>Description</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule in rules %}
+                    <tr>
+                        <td>{{ rule.get_match_type_display }}</td>
+                        <td><code>{{ rule.pattern }}</code></td>
+                        <td>
+                            <span class="category-badge category-{{ rule.category }}">
+                                {{ rule.category }}
+                            </span>
+                        </td>
+                        <td>{{ rule.description|default:"—" }}</td>
+                        <td>
+                            <form method="post" style="display:inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="delete_rule">
+                                <input type="hidden" name="rule_id" value="{{ rule.id }}">
+                                <button type="submit" class="btn btn-xs btn-danger"
+                                        onclick="return confirm('Delete this rule?')">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state-sm">
+            <p>No productivity rules defined yet. Add some above to classify employee activity.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function copyToken(elementId) {
+    const el = document.getElementById(elementId);
+    const text = el.textContent;
+    navigator.clipboard.writeText(text).then(function() {
+        const btn = el.nextElementSibling;
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = orig, 1500);
+    });
+}
+</script>
+{% endblock %}

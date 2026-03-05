@@ -1,0 +1,93 @@
+{% extends "monitoring/base.html" %}
+{% load static %}
+
+{% block title %}Dashboard — EMP Monitor{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Employee Dashboard</h1>
+    <div class="header-stats">
+        <div class="stat-badge stat-badge-primary">
+            <span class="stat-value">{{ total_employees }}</span>
+            <span class="stat-label">Total</span>
+        </div>
+        <div class="stat-badge stat-badge-success">
+            <span class="stat-value">{{ online_count }}</span>
+            <span class="stat-label">Online</span>
+        </div>
+        <div class="stat-badge stat-badge-muted">
+            <span class="stat-value">{{ offline_count }}</span>
+            <span class="stat-label">Offline</span>
+        </div>
+    </div>
+</div>
+
+{% if not employee_data %}
+<div class="empty-state">
+    <div class="empty-icon">👥</div>
+    <h2>No Employees Added Yet</h2>
+    <p>Go to <a href="{% url 'monitoring:settings' %}">Settings</a> to add your first employee and generate an agent token.</p>
+</div>
+{% else %}
+<div class="employee-grid">
+    {% for item in employee_data %}
+    <div class="employee-card {% if item.is_online %}employee-online{% else %}employee-offline{% endif %}">
+        <div class="card-header">
+            <div class="employee-info">
+                <div class="status-dot {% if item.is_online %}dot-online{% else %}dot-offline{% endif %}"></div>
+                <div>
+                    <h3 class="employee-name">
+                        <a href="{% url 'monitoring:employee_detail' item.employee.employee_id %}">
+                            {{ item.employee.display_name }}
+                        </a>
+                    </h3>
+                    <span class="employee-dept">{{ item.employee.department|default:"No department" }}</span>
+                </div>
+            </div>
+            <div class="employee-pc">{{ item.employee.pc_name|default:"—" }}</div>
+        </div>
+
+        <div class="card-metrics">
+            <div class="metric">
+                <span class="metric-value">{{ item.active_hours }}h</span>
+                <span class="metric-label">Active Today</span>
+            </div>
+            <div class="metric">
+                <div class="productivity-ring" data-value="{{ item.productivity }}">
+                    <span class="metric-value">{{ item.productivity }}%</span>
+                </div>
+                <span class="metric-label">Productive</span>
+            </div>
+            <div class="metric">
+                <span class="metric-value">{{ item.total_screenshots_today }}</span>
+                <span class="metric-label">Screenshots</span>
+            </div>
+        </div>
+
+        {% if item.latest_screenshot %}
+        <div class="card-preview">
+            <img src="{{ item.latest_screenshot.image.url }}" alt="Latest screenshot" class="screenshot-thumb" loading="lazy">
+            <span class="preview-time">{{ item.latest_screenshot.captured_at|timesince }} ago</span>
+        </div>
+        {% else %}
+        <div class="card-preview card-preview-empty">
+            <span>No screenshots yet</span>
+        </div>
+        {% endif %}
+
+        <div class="card-footer">
+            <span class="last-seen">
+                {% if item.last_seen %}
+                    Last seen: {{ item.last_seen|timesince }} ago
+                {% else %}
+                    Never connected
+                {% endif %}
+            </span>
+            <a href="{% url 'monitoring:employee_detail' item.employee.employee_id %}" class="btn btn-sm btn-primary">View Details</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
