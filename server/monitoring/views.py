@@ -115,17 +115,25 @@ def employee_detail(request, employee_id):
             selected_hour = None
 
     if selected_hour is not None:
+        from datetime import datetime as dt, time
+        import zoneinfo
+        local_tz = zoneinfo.ZoneInfo('Africa/Johannesburg')
+        slot_start = timezone.make_aware(dt.combine(selected_date, time(selected_hour, 0)), local_tz)
+        slot_end = timezone.make_aware(dt.combine(selected_date, time(selected_hour, 59, 59)), local_tz)
         screenshots = all_day_screenshots.filter(
-            captured_at__hour=selected_hour,
+            captured_at__gte=slot_start,
+            captured_at__lte=slot_end,
         )
     else:
         screenshots = all_day_screenshots.none()  # hidden until a slot is picked
 
     # Build time slots with screenshot counts for the picker
     from django.db.models.functions import ExtractHour
+    import zoneinfo
+    local_tz = zoneinfo.ZoneInfo('Africa/Johannesburg')
     hour_counts = dict(
         all_day_screenshots
-        .annotate(hour=ExtractHour('captured_at'))
+        .annotate(hour=ExtractHour('captured_at', tzinfo=local_tz))
         .values('hour')
         .annotate(count=Count('id'))
         .values_list('hour', 'count')
