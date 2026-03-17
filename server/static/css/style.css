@@ -691,9 +691,9 @@ tbody tr:hover {
 }
 
 .time-slot-picker {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-xs);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: var(--space-sm);
     margin-bottom: var(--space-lg);
 }
 
@@ -701,15 +701,15 @@ tbody tr:hover {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: var(--space-sm) var(--space-md);
+    justify-content: center;
+    padding: var(--space-md) var(--space-md);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    font-size: var(--font-size-xs);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
     text-decoration: none;
     transition: all var(--transition-fast);
-    min-width: 90px;
     cursor: pointer;
 }
 
@@ -717,17 +717,21 @@ tbody tr:hover {
     border-color: var(--color-primary);
     background: var(--color-surface-hover);
     color: var(--color-text);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
 
 .time-slot--active {
     border-color: var(--color-primary);
     background: var(--color-primary);
     color: #fff;
+    box-shadow: var(--shadow-md);
 }
 
 .time-slot--active:hover {
     background: var(--color-primary);
     color: #fff;
+    transform: translateY(-1px);
 }
 
 .time-slot__label {
