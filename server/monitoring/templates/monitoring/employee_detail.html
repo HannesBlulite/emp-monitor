@@ -47,7 +47,11 @@
 <!-- App Usage -->
 {% if app_usage %}
 <div class="section">
-    <h2>Application Usage</h2>
+    <div class="section-toggle" onclick="this.parentElement.classList.toggle('section--open')">
+        <h2>Application Usage</h2>
+        <span class="toggle-icon">&#9654;</span>
+    </div>
+    <div class="section-collapsible">
     <div class="app-usage-table">
         <table>
             <thead>
@@ -78,6 +82,7 @@
                 {% endfor %}
             </tbody>
         </table>
+    </div>
     </div>
 </div>
 {% endif %}
