@@ -11,15 +11,16 @@ import logging
 from datetime import datetime
 
 from django.core.files.base import ContentFile
+from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .models import (
     Employee, AgentToken, Screenshot, ActivityLog,
-    AppUsageEntry, AgentSettings,
+    AppUsageEntry, AgentSettings, AgentPackage,
 )
 
 logger = logging.getLogger('monitoring.api')
@@ -44,6 +45,7 @@ def authenticate_agent(request):
 
 
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def screenshot_upload(request):
     """
@@ -101,6 +103,7 @@ def screenshot_upload(request):
 
 
 @api_view(['POST'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def activity_report(request):
     """
@@ -177,6 +180,7 @@ def activity_report(request):
 
 
 @api_view(['GET'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def agent_settings(request):
     """
@@ -198,3 +202,59 @@ def agent_settings(request):
         'screenshot_quality': settings.screenshot_quality,
         'tracking_enabled': settings.tracking_enabled,
     })
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def agent_update_check(request):
+    """
+    Return the latest active agent version info.
+    Agents poll this to see if an update is available.
+    """
+    employee = authenticate_agent(request)
+    if not employee:
+        return Response(
+            {'error': 'Invalid or missing agent token'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    pkg = AgentPackage.objects.filter(is_active=True).first()
+    if not pkg:
+        return Response({'latest_version': '0.0.0', 'download_url': ''})
+
+    return Response({
+        'latest_version': pkg.version,
+        'download_url': f'/api/agent/update/download/{pkg.pk}/',
+        'notes': pkg.notes,
+    })
+
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def agent_update_download(request, pk):
+    """
+    Serve the agent update ZIP file.
+    """
+    employee = authenticate_agent(request)
+    if not employee:
+        return Response(
+            {'error': 'Invalid or missing agent token'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    try:
+        pkg = AgentPackage.objects.get(pk=pk, is_active=True)
+    except AgentPackage.DoesNotExist:
+        return Response(
+            {'error': 'Package not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    return FileResponse(
+        pkg.package.open('rb'),
+        content_type='application/zip',
+        as_attachment=True,
+        filename=f'empmonitor-agent-{pkg.version}.zip',
+    )

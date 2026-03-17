@@ -25,6 +25,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from screenshot import capture_all_monitors, save_screenshots_locally
 from activity import ActivityTracker
 from server_comm import ServerCommunicator
+from updater import check_for_update, apply_update, restart_agent
+from version import AGENT_VERSION
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -115,6 +117,7 @@ class EmpMonitorAgent:
         self.running = True
         self.logger.info("=" * 60)
         self.logger.info("EMP Monitor Agent starting")
+        self.logger.info(f"  Version: {AGENT_VERSION}")
         self.logger.info(f"  Server: {self.config['server_url']}")
         self.logger.info(f"  Screenshot interval: {self.screenshot_interval}s")
         self.logger.info(f"  Activity report interval: {self.activity_report_interval}s")
@@ -130,6 +133,7 @@ class EmpMonitorAgent:
             threading.Thread(target=self._activity_report_loop, daemon=True, name='ActivityReportLoop'),
             threading.Thread(target=self._queue_flush_loop, daemon=True, name='QueueFlushLoop'),
             threading.Thread(target=self._settings_refresh_loop, daemon=True, name='SettingsLoop'),
+            threading.Thread(target=self._update_check_loop, daemon=True, name='UpdateLoop'),
         ]
 
         for t in threads:
@@ -235,6 +239,36 @@ class EmpMonitorAgent:
         while self.running:
             self._interruptible_sleep(300)  # Every 5 minutes
             self._refresh_settings()
+
+    def _update_check_loop(self):
+        """Periodically check for agent updates."""
+        # Wait 60 seconds after startup before first check
+        self._interruptible_sleep(60)
+
+        while self.running:
+            try:
+                result = check_for_update(
+                    self.config['server_url'],
+                    self.communicator.session,
+                )
+                if result and result.get('update_available'):
+                    self.logger.info(
+                        f"Update available: {AGENT_VERSION} -> "
+                        f"{result['latest_version']}"
+                    )
+                    if apply_update(
+                        self.config['server_url'],
+                        self.communicator.session,
+                        result['download_url'],
+                    ):
+                        self.logger.info("Update applied, restarting...")
+                        self.stop()
+                        restart_agent()
+                        return
+            except Exception as e:
+                self.logger.error(f"Update check error: {e}")
+
+            self._interruptible_sleep(3600)  # Check every hour
 
     # -----------------------------------------------------------------------
     # Helpers

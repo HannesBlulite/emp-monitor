@@ -1,0 +1,11 @@
+[Unit]
+Description=EMP Monitor retention cleanup
+After=network.target postgresql.service
+
+[Service]
+Type=oneshot
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/emp-monitor/server
+EnvironmentFile=/opt/emp-monitor/.env
+ExecStart=/opt/emp-monitor/venv/bin/python manage.py prune_monitoring_data

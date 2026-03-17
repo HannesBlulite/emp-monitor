@@ -99,9 +99,47 @@ def employee_detail(request, employee_id):
         selected_date = timezone.now().date()
 
     # Screenshots for selected date
-    screenshots = employee.screenshots.filter(
+    all_day_screenshots = employee.screenshots.filter(
         captured_at__date=selected_date
     ).order_by('-captured_at')
+
+    # Hour filter — optional, e.g. ?hour=8 means 08:00–08:59
+    hour_str = request.GET.get('hour')
+    selected_hour = None
+    if hour_str is not None:
+        try:
+            selected_hour = int(hour_str)
+            if not (0 <= selected_hour <= 23):
+                selected_hour = None
+        except (ValueError, TypeError):
+            selected_hour = None
+
+    if selected_hour is not None:
+        screenshots = all_day_screenshots.filter(
+            captured_at__hour=selected_hour,
+        )
+    else:
+        screenshots = all_day_screenshots.none()  # hidden until a slot is picked
+
+    # Build time slots with screenshot counts for the picker
+    from django.db.models.functions import ExtractHour
+    hour_counts = dict(
+        all_day_screenshots
+        .annotate(hour=ExtractHour('captured_at'))
+        .values('hour')
+        .annotate(count=Count('id'))
+        .values_list('hour', 'count')
+    )
+    time_slots = []
+    for h in range(24):
+        count = hour_counts.get(h, 0)
+        if count > 0:
+            time_slots.append({
+                'hour': h,
+                'label': f"{h:02d}:00 – {h:02d}:59",
+                'count': count,
+                'active': selected_hour == h,
+            })
 
     # Activity logs for selected date
     activity_logs = employee.activity_logs.filter(
@@ -139,6 +177,8 @@ def employee_detail(request, employee_id):
             'category': category,
         })
 
+    total_day_screenshots = all_day_screenshots.count()
+
     context = {
         'employee': employee,
         'selected_date': selected_date,
@@ -150,7 +190,10 @@ def employee_detail(request, employee_id):
         'idle_hours': round(idle_secs / 3600, 1),
         'productivity_pct': round((summary['avg_productivity'] or 0) * 100),
         'app_usage': classified_apps,
-        'total_screenshots': screenshots.count(),
+        'total_screenshots': total_day_screenshots,
+        'filtered_screenshot_count': screenshots.count(),
+        'time_slots': time_slots,
+        'selected_hour': selected_hour,
     }
 
     return render(request, 'monitoring/employee_detail.html', context)

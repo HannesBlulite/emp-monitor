@@ -5,7 +5,7 @@ Monitoring App — Admin Configuration
 from django.contrib import admin
 from .models import (
     Employee, AgentToken, Screenshot, ActivityLog,
-    AppUsageEntry, ProductivityRule, AgentSettings,
+    AppUsageEntry, ProductivityRule, AgentSettings, AgentPackage,
 )
 
 
@@ -56,3 +56,10 @@ class AgentSettingsAdmin(admin.ModelAdmin):
         'screenshot_interval_seconds', 'activity_report_interval_seconds',
         'idle_threshold_seconds', 'tracking_enabled', 'updated_at'
     ]
+
+
+@admin.register(AgentPackage)
+class AgentPackageAdmin(admin.ModelAdmin):
+    list_display = ['version', 'is_active', 'notes', 'created_at']
+    list_filter = ['is_active']
+    readonly_fields = ['created_at']

@@ -55,13 +55,13 @@ To deploy the agent to an employee's computer, you need to set up Python, instal
 
 **Prerequisites on the Employee PC:**
 1. Install [Python 3.10+](https://www.python.org/downloads/windows/). **CRITICAL**: During the Python installation, you MUST check the box that says **"Add Python to PATH"**.
-2. Copy the entire `/agent` directory from this repository to a hidden or permanent location on the employee's PC (e.g., `C:\ProgramData\EmpMonitorAgent`).
+2. Copy the entire `/agent` directory from this repository to `C:\DDC\tools\agent` on the employee's PC.
 
 **Installation & Configuration:**
 1. Open the Django Dashboard on your server, go to **Settings**, and add the new Employee. This will generate a unique **Agent Token**.
 2. On the employee PC, open a command prompt (as Administrator) and navigate to the agent folder:
    ```cmd
-   cd C:\ProgramData\EmpMonitorAgent
+   cd C:\DDC\tools\agent
    ```
 3. Install the required Python packages for the agent:
    ```cmd

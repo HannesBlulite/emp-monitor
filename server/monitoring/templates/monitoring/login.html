@@ -2,9 +2,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login — EMP Monitor</title>
+    <title>Login &#8212; EMP Monitor</title>
     <link rel="stylesheet" href="{% static 'css/style.css' %}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,7 +15,7 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <span class="login-logo">📊</span>
+                <img src="{% static 'img/DDCLOGO.png' %}" alt="DDC" class="login-logo-img">
                 <h1>EMP Monitor</h1>
                 <p>Employee Monitoring Dashboard</p>
             </div>

@@ -1,5 +1,5 @@
 /* ============================================================
-   EMP Monitor — Dashboard Stylesheet
+   EMP Monitor â€” Dashboard Stylesheet
    ============================================================ */
 
 /* --- CSS Variables (Design Tokens) --- */
@@ -67,6 +67,34 @@
 }
 
 
+/* --- Light Theme Override --- */
+[data-theme="light"] {
+    --color-bg: #f5f6fa;
+    --color-surface: #ffffff;
+    --color-surface-hover: #f0f1f5;
+    --color-surface-elevated: #e9eaf0;
+    --color-border: #d1d5db;
+    --color-border-subtle: #e5e7eb;
+
+    --color-text: #1f2937;
+    --color-text-secondary: #4b5563;
+    --color-text-muted: #6b7280;
+
+    --color-primary: #4f46e5;
+    --color-primary-hover: #6366f1;
+    --color-primary-bg: rgba(79, 70, 229, 0.1);
+
+    --color-success-bg: rgba(34, 197, 94, 0.1);
+    --color-warning-bg: rgba(245, 158, 11, 0.1);
+    --color-danger-bg: rgba(239, 68, 68, 0.1);
+    --color-muted-bg: rgba(107, 114, 128, 0.08);
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+
 /* --- Reset & Globals --- */
 *, *::before, *::after {
     box-sizing: border-box;
@@ -120,6 +148,12 @@ a:hover {
 
 .navbar-logo {
     font-size: var(--font-size-xl);
+}
+
+.navbar-logo-img {
+    height: 32px;
+    width: auto;
+    object-fit: contain;
 }
 
 .navbar-title {
@@ -397,7 +431,7 @@ a:hover {
     bottom: 6px;
     right: 6px;
     background: rgba(0, 0, 0, 0.75);
-    color: var(--color-text);
+    color: #e8eaed;
     padding: 2px 8px;
     border-radius: var(--radius-sm);
     font-size: var(--font-size-xs);
@@ -647,6 +681,92 @@ tbody tr:hover {
 .usage-bar-productive { background: var(--color-productive); }
 .usage-bar-unproductive { background: var(--color-unproductive); }
 .usage-bar-neutral { background: var(--color-neutral); }
+
+
+/* --- Time Slot Picker --- */
+.section-hint {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin-bottom: var(--space-sm);
+}
+
+.time-slot-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-lg);
+}
+
+.time-slot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+    min-width: 90px;
+    cursor: pointer;
+}
+
+.time-slot:hover {
+    border-color: var(--color-primary);
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+.time-slot--active {
+    border-color: var(--color-primary);
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.time-slot--active:hover {
+    background: var(--color-primary);
+    color: #fff;
+}
+
+.time-slot__label {
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.time-slot__count {
+    font-size: 0.7rem;
+    opacity: 0.75;
+    margin-top: 2px;
+}
+
+.time-slot--active .time-slot__count {
+    opacity: 0.9;
+}
+
+.screenshot-filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-sm) var(--space-md);
+    margin-bottom: var(--space-md);
+    background: var(--color-surface-elevated);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.clear-filter {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: var(--font-size-sm);
+}
+
+.clear-filter:hover {
+    text-decoration: underline;
+}
 
 
 /* --- Screenshot Gallery --- */
@@ -908,6 +1028,10 @@ tbody tr:hover {
     background: linear-gradient(135deg, #0f1117 0%, #1a1d35 50%, #0f1117 100%);
 }
 
+[data-theme="light"] .login-body {
+    background: linear-gradient(135deg, #e8eaf6 0%, #c5cae9 50%, #e8eaf6 100%);
+}
+
 .login-container {
     width: 100%;
     max-width: 400px;
@@ -931,6 +1055,14 @@ tbody tr:hover {
     font-size: 3rem;
     display: block;
     margin-bottom: var(--space-sm);
+}
+
+.login-logo-img {
+    height: 64px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto var(--space-sm);
 }
 
 .login-header h1 {
@@ -968,6 +1100,25 @@ tbody tr:hover {
     padding: var(--space-md);
     font-size: var(--font-size-md);
     font-weight: 600;
+}
+
+
+/* --- Theme Toggle --- */
+.theme-toggle {
+    background: var(--color-surface-hover);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: var(--font-size-base);
+    line-height: 1;
+    transition: all var(--transition-fast);
+    color: var(--color-text);
+}
+
+.theme-toggle:hover {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary);
 }
 
 

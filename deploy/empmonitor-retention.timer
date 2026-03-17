@@ -1,0 +1,10 @@
+[Unit]
+Description=Run EMP Monitor retention cleanup daily
+
+[Timer]
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+Unit=empmonitor-retention.service
+
+[Install]
+WantedBy=timers.target

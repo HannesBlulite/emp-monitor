@@ -82,22 +82,48 @@
 </div>
 {% endif %}
 
-<!-- Screenshots Gallery -->
+<!-- Screenshots Section -->
 <div class="section">
-    <h2>Screenshots ({{ total_screenshots }})</h2>
-    {% if screenshots %}
-    <div class="screenshot-gallery">
-        {% for shot in screenshots %}
-        <div class="screenshot-item" onclick="openScreenshot('{{ shot.image.url }}', '{{ shot.captured_at|date:"H:i:s" }}', {{ shot.monitor_index }})">
-            <img src="{{ shot.image.url }}" alt="Screenshot" class="screenshot-img" loading="lazy">
-            <div class="screenshot-meta">
-                <span class="screenshot-time">{{ shot.captured_at|date:"H:i:s" }}</span>
-                <span class="screenshot-monitor">Mon {{ shot.monitor_index }}</span>
-            </div>
-        </div>
+    <h2>Screenshots ({{ total_screenshots }} today)</h2>
+
+    <!-- Time Slot Picker -->
+    {% if time_slots %}
+    <p class="section-hint">Select a time slot to view screenshots:</p>
+    <div class="time-slot-picker">
+        {% for slot in time_slots %}
+        <a href="?date={{ selected_date|date:'Y-m-d' }}&hour={{ slot.hour }}"
+           class="time-slot{% if slot.active %} time-slot--active{% endif %}">
+            <span class="time-slot__label">{{ slot.label }}</span>
+            <span class="time-slot__count">{{ slot.count }}</span>
+        </a>
         {% endfor %}
     </div>
-    {% else %}
+    {% endif %}
+
+    <!-- Filtered Gallery -->
+    {% if selected_hour != None %}
+    <div class="screenshot-filter-bar">
+        <span>Showing {{ filtered_screenshot_count }} screenshot{{ filtered_screenshot_count|pluralize }} from {{ selected_hour|stringformat:"02d" }}:00 – {{ selected_hour|stringformat:"02d" }}:59</span>
+        <a href="?date={{ selected_date|date:'Y-m-d' }}" class="clear-filter">Clear filter</a>
+    </div>
+        {% if screenshots %}
+        <div class="screenshot-gallery">
+            {% for shot in screenshots %}
+            <div class="screenshot-item" onclick="openScreenshot('{{ shot.image.url }}', '{{ shot.captured_at|date:"H:i:s" }}', {{ shot.monitor_index }})">
+                <img src="{{ shot.image.url }}" alt="Screenshot" class="screenshot-img" loading="lazy">
+                <div class="screenshot-meta">
+                    <span class="screenshot-time">{{ shot.captured_at|date:"H:i:s" }}</span>
+                    <span class="screenshot-monitor">Mon {{ shot.monitor_index }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state-sm">
+            <p>No screenshots in this time slot</p>
+        </div>
+        {% endif %}
+    {% elif not time_slots %}
     <div class="empty-state-sm">
         <p>No screenshots for {{ selected_date|date:"d M Y" }}</p>
     </div>

@@ -2,6 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}EMP Monitor{% endblock %}</title>
@@ -14,7 +15,7 @@
 <body>
     <nav class="navbar">
         <div class="navbar-brand">
-            <span class="navbar-logo">📊</span>
+            <img src="{% static 'img/DDCLOGO.png' %}" alt="DDC" class="navbar-logo-img">
             <span class="navbar-title">EMP Monitor</span>
         </div>
         <div class="navbar-links">
@@ -24,6 +25,7 @@
         </div>
         <div class="navbar-user">
             {% if user.is_authenticated %}
+                <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode">&#9790;</button>
                 <span class="user-name">{{ user.username }}</span>
                 <a href="{% url 'logout' %}" class="btn btn-sm btn-outline">Logout</a>
             {% endif %}
@@ -43,5 +45,22 @@
     </main>
 
     {% block extra_scripts %}{% endblock %}
+    <script>
+    (function() {
+        var saved = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', saved);
+        var btn = document.getElementById('themeToggle');
+        if (btn) {
+            btn.innerHTML = saved === 'light' ? '&#9788;' : '&#9790;';
+            btn.addEventListener('click', function() {
+                var current = document.documentElement.getAttribute('data-theme');
+                var next = current === 'light' ? 'dark' : 'light';
+                document.documentElement.setAttribute('data-theme', next);
+                localStorage.setItem('theme', next);
+                btn.innerHTML = next === 'light' ? '&#9788;' : '&#9790;';
+            });
+        }
+    })();
+    </script>
 </body>
 </html>

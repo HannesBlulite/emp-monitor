@@ -203,3 +203,21 @@ class AgentSettings(models.Model):
         """Get the singleton settings instance, creating defaults if needed."""
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class AgentPackage(models.Model):
+    """
+    Uploaded agent update package. The latest active package is served
+    to agents that request an update.
+    """
+    version = models.CharField(max_length=20, unique=True, help_text="Semver e.g. 1.1.0")
+    package = models.FileField(upload_to='agent_packages/')
+    notes = models.TextField(blank=True, help_text="What changed in this version")
+    is_active = models.BooleanField(default=True, help_text="Serve this version to agents")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Agent v{self.version}{' (active)' if self.is_active else ''}"

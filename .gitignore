@@ -55,6 +55,8 @@ agent/test_screenshots/
 # Config parameters
 agent/config.json
 .env
+.env.*
+DEPLOYMENT_NOTES.local.md
 
 # MacOS
 .DS_Store
