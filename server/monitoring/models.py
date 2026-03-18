@@ -120,6 +120,10 @@ class AppUsageEntry(models.Model):
     )
     process_name = models.CharField(max_length=200)
     window_title = models.TextField(blank=True)
+    domain = models.CharField(
+        max_length=200, blank=True, default='',
+        help_text="Extracted website domain when the active app is a browser"
+    )
     duration_seconds = models.FloatField(default=0)
     timestamp = models.DateTimeField(null=True, blank=True)
 

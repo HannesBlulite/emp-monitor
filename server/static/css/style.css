@@ -1224,3 +1224,156 @@ tbody tr:hover {
         grid-template-columns: 1fr;
     }
 }
+
+
+/* --- Rule Filter Bar --- */
+.rule-filter-bar {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    margin-top: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.rule-search-input {
+    flex: 1;
+    min-width: 200px;
+    padding: 6px 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+}
+
+.rule-filter-bar select {
+    padding: 6px 10px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+}
+
+.rule-actions-bar {
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+    margin-bottom: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.rule-stats {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.table-info {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-muted);
+    margin: var(--space-sm) var(--space-md) 0;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 4px;
+    white-space: nowrap;
+}
+
+
+/* --- Pagination --- */
+.pagination {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    padding: var(--space-md);
+    flex-wrap: wrap;
+}
+
+
+/* --- Modal --- */
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-xl);
+    min-width: 400px;
+    max-width: 500px;
+}
+
+.modal-content h3 {
+    margin: 0 0 var(--space-md) 0;
+    color: var(--color-text);
+}
+
+.modal-content .form-group {
+    margin-bottom: var(--space-md);
+}
+
+.modal-content .form-group label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.modal-content .form-group input,
+.modal-content .form-group select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    font-size: var(--font-size-base);
+}
+
+.modal-actions {
+    display: flex;
+    gap: var(--space-sm);
+    justify-content: flex-end;
+    margin-top: var(--space-lg);
+}
+
+
+/* --- Website Usage Table --- */
+.website-usage-table {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    margin-top: var(--space-md);
+}
+
+/* --- Import form styling --- */
+.import-form input[type="file"] {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.import-form input[type="file"]::file-selector-button {
+    padding: 4px 12px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+}
+
+.import-form input[type="file"]::file-selector-button:hover {
+    background: var(--color-surface-hover);
+}

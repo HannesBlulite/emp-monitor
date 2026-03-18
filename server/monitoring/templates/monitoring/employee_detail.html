@@ -35,7 +35,12 @@
     <div class="summary-card">
         <div class="summary-icon">📈</div>
         <div class="summary-value">{{ productivity_pct }}%</div>
-        <div class="summary-label">Productivity</div>
+        <div class="summary-label">Activity Rate</div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-icon">🎯</div>
+        <div class="summary-value">{{ rule_productivity_pct }}%</div>
+        <div class="summary-label">Productive Time</div>
     </div>
     <div class="summary-card">
         <div class="summary-icon">📸</div>
@@ -76,6 +81,49 @@
                         <div class="usage-bar">
                             <div class="usage-bar-fill usage-bar-{{ app.category }}"
                                  style="width: {% widthratio app.duration_seconds app_usage.0.duration_seconds 100 %}%"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Website Usage -->
+{% if website_usage %}
+<div class="section">
+    <div class="section-toggle" onclick="this.parentElement.classList.toggle('section--open')">
+        <h2>Website Usage</h2>
+        <span class="toggle-icon">&#9654;</span>
+    </div>
+    <div class="section-collapsible">
+    <div class="website-usage-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Website</th>
+                    <th>Time (minutes)</th>
+                    <th>Category</th>
+                    <th>Usage Bar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for site in website_usage %}
+                <tr>
+                    <td class="app-name">{{ site.domain }}</td>
+                    <td>{{ site.duration_minutes }}</td>
+                    <td>
+                        <span class="category-badge category-{{ site.category }}">
+                            {{ site.category }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="usage-bar">
+                            <div class="usage-bar-fill usage-bar-{{ site.category }}"
+                                 style="width: {% widthratio site.duration_seconds website_usage.0.duration_seconds 100 %}%"></div>
                         </div>
                     </td>
                 </tr>

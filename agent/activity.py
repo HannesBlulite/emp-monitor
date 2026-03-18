@@ -11,6 +11,11 @@ import time
 from datetime import datetime, timedelta
 from collections import defaultdict
 
+from browser_url import (
+    is_browser_process, get_browser_url, extract_domain,
+    extract_domain_from_title,
+)
+
 logger = logging.getLogger('emp_agent.activity')
 
 # Windows API structures and functions
@@ -52,7 +57,7 @@ def get_foreground_window_info():
     try:
         hwnd = user32.GetForegroundWindow()
         if not hwnd:
-            return {'window_title': '', 'process_name': '', 'process_id': 0}
+            return {'window_title': '', 'process_name': '', 'process_id': 0, 'hwnd': 0}
 
         # Get window title
         length = user32.GetWindowTextLengthW(hwnd)
@@ -72,10 +77,11 @@ def get_foreground_window_info():
             'window_title': window_title,
             'process_name': process_name,
             'process_id': process_id,
+            'hwnd': hwnd,
         }
     except Exception as e:
         logger.error(f"Failed to get foreground window info: {e}")
-        return {'window_title': '', 'process_name': '', 'process_id': 0}
+        return {'window_title': '', 'process_name': '', 'process_id': 0, 'hwnd': 0}
 
 
 def _get_process_name(pid):
@@ -121,6 +127,7 @@ class ActivityTracker:
         self.idle_seconds = 0.0
         self.last_poll_time = None
         self.app_usage = defaultdict(float)  # process_name -> seconds
+        self.domain_usage = defaultdict(float)  # domain -> seconds
         self.window_log = []  # list of (timestamp, window_title, process_name)
         self._last_window_info = None
         self._last_window_start = None
@@ -150,19 +157,39 @@ class ActivityTracker:
                 process_name = window_info.get('process_name', 'unknown')
                 self.app_usage[process_name] += elapsed
 
+                # Extract domain if this is a browser
+                domain = ''
+                if is_browser_process(process_name):
+                    hwnd = window_info.get('hwnd', 0)
+                    if hwnd:
+                        url = get_browser_url(hwnd)
+                        if url:
+                            domain = extract_domain(url)
+                    # Fallback: try to extract from window title
+                    if not domain:
+                        domain = extract_domain_from_title(
+                            window_info.get('window_title', ''),
+                            process_name,
+                        )
+                    if domain:
+                        self.domain_usage[domain] += elapsed
+
                 # Log window changes
                 if (self._last_window_info is None or
                         window_info['window_title'] != self._last_window_info.get('window_title')):
                     # Save the previous window's duration
                     if self._last_window_info and self._last_window_start:
                         duration = (now - self._last_window_start).total_seconds()
+                        prev_domain = self._last_window_info.get('domain', '')
                         self.window_log.append({
                             'timestamp': self._last_window_start.isoformat(),
                             'window_title': self._last_window_info['window_title'],
                             'process_name': self._last_window_info['process_name'],
                             'duration_seconds': round(duration, 1),
+                            'domain': prev_domain,
                         })
 
+                    window_info['domain'] = domain
                     self._last_window_info = window_info
                     self._last_window_start = now
 
@@ -195,6 +222,7 @@ class ActivityTracker:
                 'window_title': self._last_window_info['window_title'],
                 'process_name': self._last_window_info['process_name'],
                 'duration_seconds': round(duration, 1),
+                'domain': self._last_window_info.get('domain', ''),
             })
 
         report = {
@@ -204,6 +232,7 @@ class ActivityTracker:
             'total_seconds': round(total, 1),
             'productivity_ratio': round(ratio, 3),
             'app_usage': dict(self.app_usage),
+            'domain_usage': dict(self.domain_usage),
             'window_log': list(self.window_log),
         }
 
@@ -211,6 +240,7 @@ class ActivityTracker:
         self.active_seconds = 0.0
         self.idle_seconds = 0.0
         self.app_usage = defaultdict(float)
+        self.domain_usage = defaultdict(float)
         self.window_log = []
         self._last_window_info = None
         self._last_window_start = None

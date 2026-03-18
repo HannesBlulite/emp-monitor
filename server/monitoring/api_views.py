@@ -148,6 +148,16 @@ def activity_report(request):
             duration_seconds=float(duration),
         )
 
+    # Save domain usage entries (website time tracked by browsing)
+    domain_usage = data.get('domain_usage', {})
+    for domain, duration in domain_usage.items():
+        AppUsageEntry.objects.create(
+            activity_log=activity_log,
+            process_name='[website]',
+            domain=domain,
+            duration_seconds=float(duration),
+        )
+
     # Save window log entries
     window_log = data.get('window_log', [])
     for entry in window_log:
@@ -163,6 +173,7 @@ def activity_report(request):
             activity_log=activity_log,
             process_name=entry.get('process_name', 'unknown'),
             window_title=entry.get('window_title', ''),
+            domain=entry.get('domain', ''),
             duration_seconds=float(entry.get('duration_seconds', 0)),
             timestamp=ts,
         )

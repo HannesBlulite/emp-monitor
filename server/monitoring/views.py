@@ -4,13 +4,15 @@ Monitoring App — Dashboard Views
 Web dashboard views for the admin/manager to view employee data.
 """
 
+import csv
+import io
 import json
 from collections import defaultdict
 from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum, Count, Avg, Max
-from django.http import JsonResponse
+from django.db.models import Sum, Count, Avg, Max, Q
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 
@@ -18,6 +20,23 @@ from .models import (
     Employee, Screenshot, ActivityLog, AppUsageEntry,
     ProductivityRule, AgentSettings, AgentToken,
 )
+
+
+def _match_domain_rule(domain, domain_rules):
+    """
+    Match a domain against productivity rules.
+    Tries exact match first, then checks if the domain is a subdomain
+    of any rule pattern (e.g. 'mail.google.com' matches 'google.com').
+    """
+    domain = domain.lower()
+    # Exact match
+    if domain in domain_rules:
+        return domain_rules[domain]
+    # Subdomain match: if domain ends with '.pattern'
+    for pattern, category in domain_rules.items():
+        if domain.endswith('.' + pattern):
+            return category
+    return 'neutral'
 
 
 @login_required
@@ -172,18 +191,77 @@ def employee_detail(request, employee_id):
         total_duration=Sum('duration_seconds')
     ).order_by('-total_duration')[:20]
 
-    # Classify apps by productivity rules
-    rules = {r.pattern.lower(): r.category for r in ProductivityRule.objects.all()}
+    # Domain (website) usage breakdown for the day
+    domain_usage = AppUsageEntry.objects.filter(
+        activity_log__employee=employee,
+        activity_log__created_at__date=selected_date,
+    ).exclude(domain='').values('domain').annotate(
+        total_duration=Sum('duration_seconds')
+    ).order_by('-total_duration')[:20]
+
+    # Build rule lookup dicts
+    app_rules = {
+        r.pattern.lower(): r.category
+        for r in ProductivityRule.objects.filter(match_type='app')
+    }
+    domain_rules = {
+        r.pattern.lower(): r.category
+        for r in ProductivityRule.objects.filter(match_type='domain')
+    }
+
+    # Classify apps
     classified_apps = []
     for app in app_usage:
         name = app['process_name']
-        category = rules.get(name.lower(), 'neutral')
+        # Skip the synthetic [website] entries — those are in domain_usage
+        if name == '[website]':
+            continue
+        app_key = name.lower().replace('.exe', '')
+        category = app_rules.get(app_key, app_rules.get(name.lower(), 'neutral'))
         classified_apps.append({
             'process_name': name,
             'duration_seconds': app['total_duration'],
             'duration_minutes': round(app['total_duration'] / 60, 1),
             'category': category,
         })
+
+    # Classify websites
+    classified_websites = []
+    productive_seconds = 0
+    unproductive_seconds = 0
+    neutral_seconds = 0
+    for site in domain_usage:
+        domain = site['domain']
+        category = _match_domain_rule(domain, domain_rules)
+        dur = site['total_duration']
+        classified_websites.append({
+            'domain': domain,
+            'duration_seconds': dur,
+            'duration_minutes': round(dur / 60, 1),
+            'category': category,
+        })
+        if category == 'productive':
+            productive_seconds += dur
+        elif category == 'unproductive':
+            unproductive_seconds += dur
+        else:
+            neutral_seconds += dur
+
+    # Also count app-based productivity
+    for app in classified_apps:
+        if app['category'] == 'productive':
+            productive_seconds += app['duration_seconds']
+        elif app['category'] == 'unproductive':
+            unproductive_seconds += app['duration_seconds']
+        else:
+            neutral_seconds += app['duration_seconds']
+
+    # Rule-based productivity percentage
+    classified_total = productive_seconds + unproductive_seconds + neutral_seconds
+    rule_productivity_pct = (
+        round(productive_seconds / classified_total * 100)
+        if classified_total > 0 else 0
+    )
 
     total_day_screenshots = all_day_screenshots.count()
 
@@ -197,7 +275,12 @@ def employee_detail(request, employee_id):
         'idle_seconds': idle_secs,
         'idle_hours': round(idle_secs / 3600, 1),
         'productivity_pct': round((summary['avg_productivity'] or 0) * 100),
+        'rule_productivity_pct': rule_productivity_pct,
+        'productive_seconds': round(productive_seconds),
+        'unproductive_seconds': round(unproductive_seconds),
+        'neutral_seconds': round(neutral_seconds),
         'app_usage': classified_apps,
+        'website_usage': classified_websites,
         'total_screenshots': total_day_screenshots,
         'filtered_screenshot_count': screenshots.count(),
         'time_slots': time_slots,
@@ -211,7 +294,6 @@ def employee_detail(request, employee_id):
 def settings_view(request):
     """Admin settings page."""
     settings = AgentSettings.get_settings()
-    rules = ProductivityRule.objects.all()
     employees = Employee.objects.all().order_by('display_name')
 
     if request.method == 'POST':
@@ -236,17 +318,32 @@ def settings_view(request):
         elif action == 'add_rule':
             ProductivityRule.objects.get_or_create(
                 match_type=request.POST.get('match_type', 'domain'),
-                pattern=request.POST.get('pattern', ''),
+                pattern=request.POST.get('pattern', '').strip().lower(),
                 defaults={
                     'category': request.POST.get('category', 'neutral'),
                     'description': request.POST.get('description', ''),
                 }
             )
 
+        elif action == 'edit_rule':
+            rule_id = request.POST.get('rule_id')
+            if rule_id:
+                ProductivityRule.objects.filter(id=rule_id).update(
+                    match_type=request.POST.get('match_type', 'domain'),
+                    pattern=request.POST.get('pattern', '').strip().lower(),
+                    category=request.POST.get('category', 'neutral'),
+                    description=request.POST.get('description', ''),
+                )
+
         elif action == 'delete_rule':
             rule_id = request.POST.get('rule_id')
             if rule_id:
                 ProductivityRule.objects.filter(id=rule_id).delete()
+
+        elif action == 'import_rules':
+            csv_file = request.FILES.get('csv_file')
+            if csv_file:
+                _import_rules_from_csv(csv_file)
 
         elif action == 'add_employee':
             emp = Employee.objects.create(
@@ -255,8 +352,7 @@ def settings_view(request):
                 department=request.POST.get('emp_department', ''),
                 pc_name=request.POST.get('emp_pc_name', ''),
             )
-            # Generate agent token
-            token = AgentToken.objects.create(employee=emp)
+            AgentToken.objects.create(employee=emp)
 
         elif action == 'regenerate_token':
             emp_pk = request.POST.get('employee_pk')
@@ -267,10 +363,30 @@ def settings_view(request):
 
     # Reload after POST
     settings = AgentSettings.get_settings()
-    rules = ProductivityRule.objects.all()
-    employees = Employee.objects.all().order_by('display_name')
 
-    # Include tokens for display
+    # Rules — with search and pagination
+    rule_search = request.GET.get('rule_search', '').strip()
+    rule_type_filter = request.GET.get('rule_type', '')
+    rule_category_filter = request.GET.get('rule_category', '')
+
+    rules_qs = ProductivityRule.objects.all()
+    if rule_search:
+        rules_qs = rules_qs.filter(pattern__icontains=rule_search)
+    if rule_type_filter:
+        rules_qs = rules_qs.filter(match_type=rule_type_filter)
+    if rule_category_filter:
+        rules_qs = rules_qs.filter(category=rule_category_filter)
+
+    total_rules = rules_qs.count()
+
+    # Simple pagination
+    page = int(request.GET.get('rule_page', 1))
+    per_page = 50
+    total_pages = max(1, (total_rules + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
+    rules = rules_qs[(page - 1) * per_page: page * per_page]
+
+    employees = Employee.objects.all().order_by('display_name')
     employee_tokens = []
     for emp in employees:
         token = AgentToken.objects.filter(employee=emp).first()
@@ -280,10 +396,85 @@ def settings_view(request):
             'last_used': token.last_used if token else None,
         })
 
+    # Rule counts for display
+    rule_counts = {
+        'total': ProductivityRule.objects.count(),
+        'productive': ProductivityRule.objects.filter(category='productive').count(),
+        'unproductive': ProductivityRule.objects.filter(category='unproductive').count(),
+        'neutral': ProductivityRule.objects.filter(category='neutral').count(),
+        'websites': ProductivityRule.objects.filter(match_type='domain').count(),
+        'apps': ProductivityRule.objects.filter(match_type='app').count(),
+    }
+
     context = {
         'settings': settings,
         'rules': rules,
+        'total_rules': total_rules,
+        'rule_search': rule_search,
+        'rule_type_filter': rule_type_filter,
+        'rule_category_filter': rule_category_filter,
+        'rule_page': page,
+        'total_pages': total_pages,
+        'page_range': range(max(1, page - 3), min(total_pages + 1, page + 4)),
+        'rule_counts': rule_counts,
         'employee_tokens': employee_tokens,
     }
 
     return render(request, 'monitoring/settings.html', context)
+
+
+def _import_rules_from_csv(csv_file):
+    """Import productivity rules from an uploaded CSV file."""
+    decoded = csv_file.read().decode('utf-8-sig')
+    reader = csv.DictReader(io.StringIO(decoded))
+
+    type_map = {'website': 'domain', 'application': 'app'}
+    category_map = {'productive': 'productive', 'unproductive': 'unproductive', 'neutral': 'neutral'}
+
+    created = 0
+    updated = 0
+    for row in reader:
+        raw = {k.strip().lower(): v for k, v in row.items()}
+        raw_type = raw.get('type', '').strip().lower()
+        pattern = raw.get('activity', raw.get('pattern', '')).strip().lower()
+        raw_status = raw.get('status', raw.get('category', '')).strip().lower()
+
+        match_type = type_map.get(raw_type)
+        category = category_map.get(raw_status, 'neutral')
+
+        if not match_type or not pattern:
+            continue
+
+        _, was_created = ProductivityRule.objects.update_or_create(
+            match_type=match_type,
+            pattern=pattern,
+            defaults={'category': category},
+        )
+        if was_created:
+            created += 1
+        else:
+            updated += 1
+
+    return created, updated
+
+
+@login_required
+def export_rules_csv(request):
+    """Export all productivity rules as a CSV download."""
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="productivity_rules.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Type', 'Activity', 'status'])
+
+    type_map = {'domain': 'Website', 'app': 'Application'}
+    category_map = {'productive': 'Productive', 'unproductive': 'Unproductive', 'neutral': 'Neutral'}
+
+    for rule in ProductivityRule.objects.all().order_by('match_type', 'pattern'):
+        writer.writerow([
+            type_map.get(rule.match_type, rule.match_type),
+            rule.pattern,
+            category_map.get(rule.category, rule.category),
+        ])
+
+    return response

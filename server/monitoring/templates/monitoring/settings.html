@@ -132,7 +132,27 @@
     <!-- Productivity Rules -->
     <div class="settings-section">
         <h2>Productivity Rules</h2>
-        <p class="section-desc">Define which websites and applications are productive, unproductive, or neutral.</p>
+        <p class="section-desc">
+            Define which websites and applications are productive, unproductive, or neutral.
+            <span class="rule-stats">
+                {{ rule_counts.total }} rules
+                ({{ rule_counts.websites }} websites, {{ rule_counts.apps }} apps) —
+                <span class="category-productive">{{ rule_counts.productive }} productive</span>,
+                <span class="category-unproductive">{{ rule_counts.unproductive }} unproductive</span>,
+                <span class="category-neutral">{{ rule_counts.neutral }} neutral</span>
+            </span>
+        </p>
+
+        <!-- Import / Export -->
+        <div class="rule-actions-bar">
+            <form method="post" enctype="multipart/form-data" class="import-form" style="display:inline-flex; gap:0.5rem; align-items:center;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="import_rules">
+                <input type="file" name="csv_file" accept=".csv" required>
+                <button type="submit" class="btn btn-sm btn-outline">Import CSV</button>
+            </form>
+            <a href="{% url 'monitoring:export_rules_csv' %}" class="btn btn-sm btn-outline">Export CSV</a>
+        </div>
 
         <!-- Add Rule Form -->
         <form method="post" class="settings-form add-form">
@@ -154,9 +174,9 @@
                 <div class="form-group">
                     <label for="category">Category</label>
                     <select id="category" name="category">
-                        <option value="productive">✅ Productive</option>
-                        <option value="unproductive">❌ Unproductive</option>
-                        <option value="neutral">⚪ Neutral</option>
+                        <option value="productive">Productive</option>
+                        <option value="unproductive">Unproductive</option>
+                        <option value="neutral">Neutral</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -167,9 +187,34 @@
             <button type="submit" class="btn btn-success">Add Rule</button>
         </form>
 
+        <!-- Search and Filter -->
+        <form method="get" class="rule-filter-bar">
+            <input type="text" name="rule_search" value="{{ rule_search }}"
+                   placeholder="Search rules..." class="rule-search-input">
+            <select name="rule_type">
+                <option value="">All Types</option>
+                <option value="domain" {% if rule_type_filter == 'domain' %}selected{% endif %}>Websites</option>
+                <option value="app" {% if rule_type_filter == 'app' %}selected{% endif %}>Applications</option>
+            </select>
+            <select name="rule_category">
+                <option value="">All Categories</option>
+                <option value="productive" {% if rule_category_filter == 'productive' %}selected{% endif %}>Productive</option>
+                <option value="unproductive" {% if rule_category_filter == 'unproductive' %}selected{% endif %}>Unproductive</option>
+                <option value="neutral" {% if rule_category_filter == 'neutral' %}selected{% endif %}>Neutral</option>
+            </select>
+            <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+            {% if rule_search or rule_type_filter or rule_category_filter %}
+            <a href="{% url 'monitoring:settings' %}" class="btn btn-sm btn-outline">Clear</a>
+            {% endif %}
+        </form>
+
         <!-- Rules Table -->
         {% if rules %}
         <div class="rules-table">
+            <p class="table-info">
+                Showing {{ rules|length }} of {{ total_rules }} rules
+                (page {{ rule_page }} of {{ total_pages }})
+            </p>
             <table>
                 <thead>
                     <tr>
@@ -182,7 +227,7 @@
                 </thead>
                 <tbody>
                     {% for rule in rules %}
-                    <tr>
+                    <tr id="rule-row-{{ rule.id }}">
                         <td>{{ rule.get_match_type_display }}</td>
                         <td><code>{{ rule.pattern }}</code></td>
                         <td>
@@ -191,7 +236,11 @@
                             </span>
                         </td>
                         <td>{{ rule.description|default:"—" }}</td>
-                        <td>
+                        <td class="action-buttons">
+                            <button type="button" class="btn btn-xs btn-outline"
+                                    onclick="editRule({{ rule.id }}, '{{ rule.match_type }}', '{{ rule.pattern }}', '{{ rule.category }}', '{{ rule.description|escapejs }}')">
+                                Edit
+                            </button>
                             <form method="post" style="display:inline">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete_rule">
@@ -204,12 +253,75 @@
                     {% endfor %}
                 </tbody>
             </table>
+
+            <!-- Pagination -->
+            {% if total_pages > 1 %}
+            <div class="pagination">
+                {% if rule_page > 1 %}
+                <a href="?rule_page={{ rule_page|add:"-1" }}&rule_search={{ rule_search }}&rule_type={{ rule_type_filter }}&rule_category={{ rule_category_filter }}"
+                   class="btn btn-sm btn-outline">&laquo; Prev</a>
+                {% endif %}
+
+                {% for p in page_range %}
+                <a href="?rule_page={{ p }}&rule_search={{ rule_search }}&rule_type={{ rule_type_filter }}&rule_category={{ rule_category_filter }}"
+                   class="btn btn-sm {% if p == rule_page %}btn-primary{% else %}btn-outline{% endif %}">{{ p }}</a>
+                {% endfor %}
+
+                {% if rule_page < total_pages %}
+                <a href="?rule_page={{ rule_page|add:"1" }}&rule_search={{ rule_search }}&rule_type={{ rule_type_filter }}&rule_category={{ rule_category_filter }}"
+                   class="btn btn-sm btn-outline">Next &raquo;</a>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
         {% else %}
         <div class="empty-state-sm">
-            <p>No productivity rules defined yet. Add some above to classify employee activity.</p>
+            {% if rule_search or rule_type_filter or rule_category_filter %}
+            <p>No rules match your search. <a href="{% url 'monitoring:settings' %}">Clear filters</a></p>
+            {% else %}
+            <p>No productivity rules defined yet. Add some above or import from CSV.</p>
+            {% endif %}
         </div>
         {% endif %}
+    </div>
+</div>
+
+<!-- Edit Rule Modal -->
+<div id="editRuleModal" class="modal" style="display:none;">
+    <div class="modal-content">
+        <h3>Edit Productivity Rule</h3>
+        <form method="post" id="editRuleForm">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="edit_rule">
+            <input type="hidden" name="rule_id" id="edit_rule_id">
+            <div class="form-group">
+                <label>Type</label>
+                <select name="match_type" id="edit_match_type">
+                    <option value="domain">Website Domain</option>
+                    <option value="app">Application</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Pattern</label>
+                <input type="text" name="pattern" id="edit_pattern" required>
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select name="category" id="edit_category">
+                    <option value="productive">Productive</option>
+                    <option value="unproductive">Unproductive</option>
+                    <option value="neutral">Neutral</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <input type="text" name="description" id="edit_description">
+            </div>
+            <div class="modal-actions">
+                <button type="submit" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-outline" onclick="closeEditModal()">Cancel</button>
+            </div>
+        </form>
     </div>
 </div>
 {% endblock %}
@@ -226,5 +338,23 @@ function copyToken(elementId) {
         setTimeout(() => btn.textContent = orig, 1500);
     });
 }
+
+function editRule(id, matchType, pattern, category, description) {
+    document.getElementById('edit_rule_id').value = id;
+    document.getElementById('edit_match_type').value = matchType;
+    document.getElementById('edit_pattern').value = pattern;
+    document.getElementById('edit_category').value = category;
+    document.getElementById('edit_description').value = description;
+    document.getElementById('editRuleModal').style.display = 'flex';
+}
+
+function closeEditModal() {
+    document.getElementById('editRuleModal').style.display = 'none';
+}
+
+// Close modal on background click
+document.getElementById('editRuleModal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditModal();
+});
 </script>
 {% endblock %}

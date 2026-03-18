@@ -12,6 +12,7 @@ urlpatterns = [
     path('', views.dashboard, name='dashboard'),
     path('employee/<str:employee_id>/', views.employee_detail, name='employee_detail'),
     path('settings/', views.settings_view, name='settings'),
+    path('settings/export-rules/', views.export_rules_csv, name='export_rules_csv'),
 
     # API endpoints (for agent communication)
     path('api/screenshots/upload/', api_views.screenshot_upload, name='api_screenshot_upload'),
