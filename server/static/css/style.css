@@ -839,10 +839,11 @@ tbody tr:hover {
 .screenshot-meta {
     display: flex;
     justify-content: space-between;
-    padding: var(--space-xs) var(--space-sm);
+    padding: var(--space-sm) var(--space-sm);
     background: var(--color-surface);
-    font-size: var(--font-size-xs);
-    color: var(--color-text-secondary);
+    font-size: var(--font-size-base);
+    color: var(--color-text);
+    font-weight: 600;
 }
 
 
@@ -895,10 +896,43 @@ tbody tr:hover {
 .modal-info {
     display: flex;
     justify-content: center;
-    gap: var(--space-lg);
-    padding: var(--space-sm);
-    color: var(--color-text-secondary);
-    font-size: var(--font-size-sm);
+    gap: var(--space-xl);
+    padding: var(--space-md);
+    color: #ffffff;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+}
+
+/* --- Modal Navigation Arrows --- */
+.modal-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    color: #ffffff;
+    font-size: 2.5rem;
+    width: 60px;
+    height: 80px;
+    cursor: pointer;
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background var(--transition-fast);
+    z-index: 1010;
+}
+
+.modal-nav:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.modal-nav--prev {
+    left: var(--space-md);
+}
+
+.modal-nav--next {
+    right: var(--space-md);
 }
 
 

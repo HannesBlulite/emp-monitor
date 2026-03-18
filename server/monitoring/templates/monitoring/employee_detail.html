@@ -137,24 +137,49 @@
 
 <!-- Screenshot Modal -->
 <div id="screenshotModal" class="modal" onclick="closeScreenshot(event)">
+    <button class="modal-nav modal-nav--prev" onclick="navScreenshot(-1)" title="Previous">&#10094;</button>
     <div class="modal-content">
         <span class="modal-close" onclick="closeScreenshot(event)">&times;</span>
         <img id="modalImage" src="" alt="Screenshot">
         <div class="modal-info">
             <span id="modalTime"></span>
             <span id="modalMonitor"></span>
+            <span id="modalCounter"></span>
         </div>
     </div>
+    <button class="modal-nav modal-nav--next" onclick="navScreenshot(1)" title="Next">&#10095;</button>
 </div>
 
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+var screenshotList = [];
+var currentIndex = 0;
+
+{% if screenshots %}
+screenshotList = [
+    {% for shot in screenshots %}
+    { url: '{{ shot.image.url }}', time: '{{ shot.captured_at|date:"H:i:s" }}', monitor: {{ shot.monitor_index }} },
+    {% endfor %}
+];
+{% endif %}
+
+function showScreenshot(idx) {
+    if (idx < 0 || idx >= screenshotList.length) return;
+    currentIndex = idx;
+    var s = screenshotList[idx];
+    document.getElementById('modalImage').src = s.url;
+    document.getElementById('modalTime').textContent = 'Time: ' + s.time;
+    document.getElementById('modalMonitor').textContent = 'Monitor ' + s.monitor;
+    document.getElementById('modalCounter').textContent = (idx + 1) + ' / ' + screenshotList.length;
+}
+
 function openScreenshot(url, time, monitor) {
-    document.getElementById('modalImage').src = url;
-    document.getElementById('modalTime').textContent = 'Time: ' + time;
-    document.getElementById('modalMonitor').textContent = 'Monitor ' + monitor;
+    for (var i = 0; i < screenshotList.length; i++) {
+        if (screenshotList[i].url === url) { currentIndex = i; break; }
+    }
+    showScreenshot(currentIndex);
     document.getElementById('screenshotModal').classList.add('active');
     document.body.style.overflow = 'hidden';
 }
@@ -167,11 +192,17 @@ function closeScreenshot(e) {
     }
 }
 
+function navScreenshot(dir) {
+    var next = currentIndex + dir;
+    if (next >= 0 && next < screenshotList.length) showScreenshot(next);
+}
+
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        document.getElementById('screenshotModal').classList.remove('active');
-        document.body.style.overflow = '';
-    }
+    var modal = document.getElementById('screenshotModal');
+    if (!modal.classList.contains('active')) return;
+    if (e.key === 'Escape') { modal.classList.remove('active'); document.body.style.overflow = ''; }
+    if (e.key === 'ArrowLeft') navScreenshot(-1);
+    if (e.key === 'ArrowRight') navScreenshot(1);
 });
 </script>
 {% endblock %}
