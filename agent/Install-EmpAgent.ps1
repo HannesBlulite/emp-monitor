@@ -131,7 +131,7 @@ if (Test-Path $InstallDir) {
 New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
 
 # Copy agent source files
-$agentFiles = @('__init__.py', 'main.py', 'activity.py', 'screenshot.py', 'server_comm.py', 'service.py', 'version.py', 'updater.py', 'requirements-agent.txt')
+$agentFiles = @('__init__.py', 'main.py', 'activity.py', 'browser_url.py', 'screenshot.py', 'server_comm.py', 'service.py', 'version.py', 'updater.py', 'requirements-agent.txt')
 foreach ($f in $agentFiles) {
     $src = Join-Path $ScriptDir $f
     if (Test-Path $src) {
