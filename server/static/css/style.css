@@ -344,15 +344,15 @@ a:hover {
 }
 
 .employee-name {
-    font-size: var(--font-size-lg);
+    font-size: var(--font-size-xl);
     font-weight: 700;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
     text-transform: uppercase;
     letter-spacing: 0.03em;
 }
 
 .employee-name a {
-    color: var(--color-text);
+    color: var(--color-primary);
 }
 
 .employee-name a:hover {
