@@ -11,10 +11,14 @@ import time
 from datetime import datetime, timedelta
 from collections import defaultdict
 
-from browser_url import (
-    is_browser_process, get_browser_url, extract_domain,
-    extract_domain_from_title,
-)
+try:
+    from browser_url import (
+        is_browser_process, get_browser_url, extract_domain,
+        extract_domain_from_title,
+    )
+    HAS_BROWSER_URL = True
+except ImportError:
+    HAS_BROWSER_URL = False
 
 logger = logging.getLogger('emp_agent.activity')
 
@@ -159,7 +163,7 @@ class ActivityTracker:
 
                 # Extract domain if this is a browser
                 domain = ''
-                if is_browser_process(process_name):
+                if HAS_BROWSER_URL and is_browser_process(process_name):
                     hwnd = window_info.get('hwnd', 0)
                     if hwnd:
                         url = get_browser_url(hwnd)
