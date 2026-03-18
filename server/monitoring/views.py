@@ -62,12 +62,13 @@ def dashboard(request):
         # Last seen (last activity log)
         last_log = emp.activity_logs.first()
 
-        # Online status — consider "online" if activity within last 5 minutes
+        active_secs = today_summary['total_active'] or 0
+
+        # Online = has active time today (agent working) or seen in last 10 min
         is_online = False
         if last_log:
-            is_online = (timezone.now() - last_log.created_at) < timedelta(minutes=5)
-
-        active_secs = today_summary['total_active'] or 0
+            recently_seen = (timezone.now() - last_log.created_at) < timedelta(minutes=10)
+            is_online = recently_seen or active_secs > 0
         idle_secs = today_summary['total_idle'] or 0
         total_secs = active_secs + idle_secs
 
