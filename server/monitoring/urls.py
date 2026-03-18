@@ -10,6 +10,7 @@ app_name = 'monitoring'
 urlpatterns = [
     # Dashboard views
     path('', views.dashboard, name='dashboard'),
+    path('timesheets/', views.timesheets, name='timesheets'),
     path('employee/<str:employee_id>/', views.employee_detail, name='employee_detail'),
     path('settings/', views.settings_view, name='settings'),
     path('settings/export-rules/', views.export_rules_csv, name='export_rules_csv'),

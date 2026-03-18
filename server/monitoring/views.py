@@ -8,10 +8,10 @@ import csv
 import io
 import json
 from collections import defaultdict
-from datetime import timedelta
+from datetime import timedelta, date as date_type, datetime as dt_type
 
 from django.contrib.auth.decorators import login_required
-from django.db.models import Sum, Count, Avg, Max, Q
+from django.db.models import Sum, Count, Avg, Max, Min, Q
 from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
@@ -288,6 +288,165 @@ def employee_detail(request, employee_id):
     }
 
     return render(request, 'monitoring/employee_detail.html', context)
+
+
+@login_required
+def timesheets(request):
+    """Timesheets view — all employees with clock-in/out, hours, productivity."""
+    today = timezone.now().date()
+
+    # Parse date range
+    date_from_str = request.GET.get('date_from')
+    date_to_str = request.GET.get('date_to')
+    preset = request.GET.get('preset', '')
+
+    if preset == 'yesterday':
+        date_from = today - timedelta(days=1)
+        date_to = date_from
+    elif preset == 'last7':
+        date_from = today - timedelta(days=6)
+        date_to = today
+    elif preset == 'last30':
+        date_from = today - timedelta(days=29)
+        date_to = today
+    elif preset == 'this_month':
+        date_from = today.replace(day=1)
+        date_to = today
+    elif preset == 'last_month':
+        first_of_this = today.replace(day=1)
+        last_month_end = first_of_this - timedelta(days=1)
+        date_from = last_month_end.replace(day=1)
+        date_to = last_month_end
+    elif date_from_str and date_to_str:
+        try:
+            date_from = date_type.fromisoformat(date_from_str)
+            date_to = date_type.fromisoformat(date_to_str)
+        except ValueError:
+            date_from = today
+            date_to = today
+    else:
+        date_from = today
+        date_to = today
+
+    # Ensure order
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    # Build rule lookup dicts
+    app_rules = {
+        r.pattern.lower(): r.category
+        for r in ProductivityRule.objects.filter(match_type='app')
+    }
+    domain_rules = {
+        r.pattern.lower(): r.category
+        for r in ProductivityRule.objects.filter(match_type='domain')
+    }
+
+    employees = Employee.objects.filter(is_active=True).order_by('display_name')
+    rows = []
+
+    for emp in employees:
+        logs = emp.activity_logs.filter(
+            created_at__date__gte=date_from,
+            created_at__date__lte=date_to,
+        )
+
+        if not logs.exists():
+            continue
+
+        summary = logs.aggregate(
+            total_active=Sum('active_seconds'),
+            total_idle=Sum('idle_seconds'),
+        )
+
+        active_secs = summary['total_active'] or 0
+        idle_secs = summary['total_idle'] or 0
+        total_secs = active_secs + idle_secs
+
+        # Clock in = earliest period_start, clock out = latest period_end
+        times = logs.aggregate(
+            clock_in=Min('period_start'),
+            clock_out=Max('period_end'),
+        )
+        clock_in = times['clock_in']
+        clock_out = times['clock_out']
+
+        # Calculate total office hours from clock in to clock out
+        if clock_in and clock_out and clock_out > clock_in:
+            office_secs = (clock_out - clock_in).total_seconds()
+        else:
+            office_secs = total_secs
+
+        # Productivity classification
+        app_usage = AppUsageEntry.objects.filter(
+            activity_log__employee=emp,
+            activity_log__created_at__date__gte=date_from,
+            activity_log__created_at__date__lte=date_to,
+        )
+
+        productive_secs = 0
+        unproductive_secs = 0
+
+        # App-based classification
+        app_totals = app_usage.filter(domain='').values('process_name').annotate(
+            total=Sum('duration_seconds')
+        )
+        for entry in app_totals:
+            name = entry['process_name']
+            if name == '[website]':
+                continue
+            app_key = name.lower().replace('.exe', '')
+            cat = app_rules.get(app_key, app_rules.get(name.lower(), 'neutral'))
+            if cat == 'productive':
+                productive_secs += entry['total']
+            elif cat == 'unproductive':
+                unproductive_secs += entry['total']
+
+        # Domain-based classification
+        domain_totals = app_usage.exclude(domain='').values('domain').annotate(
+            total=Sum('duration_seconds')
+        )
+        for entry in domain_totals:
+            cat = _match_domain_rule(entry['domain'], domain_rules)
+            if cat == 'productive':
+                productive_secs += entry['total']
+            elif cat == 'unproductive':
+                unproductive_secs += entry['total']
+
+        # Productivity percentage = productive / active
+        productivity_pct = (
+            round(productive_secs / active_secs * 100, 1)
+            if active_secs > 0 else 0
+        )
+
+        rows.append({
+            'employee': emp,
+            'clock_in': clock_in,
+            'clock_out': clock_out,
+            'total_hours': _fmt_duration(total_secs),
+            'office_hours': _fmt_duration(office_secs),
+            'active_hours': _fmt_duration(active_secs),
+            'productive_hours': _fmt_duration(productive_secs),
+            'unproductive_hours': _fmt_duration(unproductive_secs),
+            'productivity_pct': productivity_pct,
+        })
+
+    context = {
+        'rows': rows,
+        'date_from': date_from,
+        'date_to': date_to,
+        'preset': preset,
+    }
+    return render(request, 'monitoring/timesheets.html', context)
+
+
+def _fmt_duration(seconds):
+    """Format seconds as HH:MM:SS."""
+    seconds = int(seconds)
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
 
 
 @login_required

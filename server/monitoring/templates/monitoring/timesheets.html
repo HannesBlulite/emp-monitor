@@ -1,0 +1,85 @@
+{% extends "monitoring/base.html" %}
+{% load static %}
+
+{% block title %}Timesheets — EMP Monitor{% endblock %}
+{% block nav_timesheets %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Timesheets</h1>
+</div>
+
+<!-- Date Range Picker -->
+<div class="timesheet-filters">
+    <div class="date-range-presets">
+        <a href="?preset=today" class="preset-btn{% if preset == '' or preset == 'today' %} preset-btn--active{% endif %}">Today</a>
+        <a href="?preset=yesterday" class="preset-btn{% if preset == 'yesterday' %} preset-btn--active{% endif %}">Yesterday</a>
+        <a href="?preset=last7" class="preset-btn{% if preset == 'last7' %} preset-btn--active{% endif %}">Last 7 Days</a>
+        <a href="?preset=last30" class="preset-btn{% if preset == 'last30' %} preset-btn--active{% endif %}">Last 30 Days</a>
+        <a href="?preset=this_month" class="preset-btn{% if preset == 'this_month' %} preset-btn--active{% endif %}">This Month</a>
+        <a href="?preset=last_month" class="preset-btn{% if preset == 'last_month' %} preset-btn--active{% endif %}">Last Month</a>
+    </div>
+    <form class="date-range-custom" method="get">
+        <label for="date_from">From:</label>
+        <input type="date" id="date_from" name="date_from" value="{{ date_from|date:'Y-m-d' }}">
+        <label for="date_to">To:</label>
+        <input type="date" id="date_to" name="date_to" value="{{ date_to|date:'Y-m-d' }}">
+        <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+    </form>
+</div>
+
+<div class="timesheet-date-label">
+    {% if date_from == date_to %}
+        Showing data for <strong>{{ date_from|date:"d M Y" }}</strong>
+    {% else %}
+        Showing data for <strong>{{ date_from|date:"d M Y" }}</strong> to <strong>{{ date_to|date:"d M Y" }}</strong>
+    {% endif %}
+</div>
+
+<!-- Timesheets Table -->
+{% if rows %}
+<div class="timesheet-table-wrap">
+    <table class="timesheet-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Clock In</th>
+                <th>Clock Out</th>
+                <th>Total Hours</th>
+                <th>Active Hours</th>
+                <th>Productive</th>
+                <th>Unproductive</th>
+                <th>Productivity</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in rows %}
+            <tr>
+                <td>
+                    <a href="{% url 'monitoring:employee_detail' row.employee.employee_id %}?date={{ date_from|date:'Y-m-d' }}" class="employee-link">
+                        {{ row.employee.display_name }}
+                    </a>
+                </td>
+                <td>{{ row.clock_in|date:"d-m-Y H:i"|default:"—" }}</td>
+                <td>{{ row.clock_out|date:"d-m-Y H:i"|default:"—" }}</td>
+                <td>{{ row.total_hours }}</td>
+                <td>{{ row.active_hours }}</td>
+                <td class="text-productive">{{ row.productive_hours }}</td>
+                <td class="text-unproductive">{{ row.unproductive_hours }}</td>
+                <td>
+                    <span class="productivity-badge {% if row.productivity_pct >= 50 %}badge-productive{% elif row.productivity_pct >= 25 %}badge-neutral{% else %}badge-unproductive{% endif %}">
+                        {{ row.productivity_pct }}%
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state-sm">
+    <p>No activity data for the selected date range.</p>
+</div>
+{% endif %}
+
+{% endblock %}

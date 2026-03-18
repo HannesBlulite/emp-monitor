@@ -20,6 +20,7 @@
         </div>
         <div class="navbar-links">
             <a href="{% url 'monitoring:dashboard' %}" class="nav-link {% block nav_dashboard %}{% endblock %}">Dashboard</a>
+            <a href="{% url 'monitoring:timesheets' %}" class="nav-link {% block nav_timesheets %}{% endblock %}">Timesheets</a>
             <a href="{% url 'monitoring:settings' %}" class="nav-link {% block nav_settings %}{% endblock %}">Settings</a>
             <a href="{% url 'admin:index' %}" class="nav-link" target="_blank">Admin</a>
         </div>
