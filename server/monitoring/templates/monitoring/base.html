@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');</script>
+    <script>document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'light');</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}EMP Monitor{% endblock %}</title>
@@ -47,7 +47,7 @@
     {% block extra_scripts %}{% endblock %}
     <script>
     (function() {
-        var saved = localStorage.getItem('theme') || 'dark';
+        var saved = localStorage.getItem('theme') || 'light';
         document.documentElement.setAttribute('data-theme', saved);
         var btn = document.getElementById('themeToggle');
         if (btn) {
