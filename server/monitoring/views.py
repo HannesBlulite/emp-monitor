@@ -363,10 +363,10 @@ def timesheets(request):
         idle_secs = summary['total_idle'] or 0
         total_secs = active_secs + idle_secs
 
-        # Clock in = earliest period_start, clock out = latest period_end
+        # Clock in = earliest activity, clock out = latest activity
         times = logs.aggregate(
-            clock_in=Min('period_start'),
-            clock_out=Max('period_end'),
+            clock_in=Min('created_at'),
+            clock_out=Max('created_at'),
         )
         clock_in = times['clock_in']
         clock_out = times['clock_out']
