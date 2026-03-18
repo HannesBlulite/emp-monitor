@@ -18,6 +18,7 @@ $files = @(
     '__init__.py',
     'main.py',
     'activity.py',
+    'browser_url.py',
     'screenshot.py',
     'server_comm.py',
     'service.py',

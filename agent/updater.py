@@ -19,9 +19,9 @@ logger = logging.getLogger('emp_agent.updater')
 
 # Files that get replaced during an update
 UPDATABLE_FILES = [
-    '__init__.py', 'main.py', 'activity.py', 'screenshot.py',
-    'server_comm.py', 'service.py', 'version.py', 'updater.py',
-    'requirements-agent.txt',
+    '__init__.py', 'main.py', 'activity.py', 'browser_url.py',
+    'screenshot.py', 'server_comm.py', 'service.py', 'version.py',
+    'updater.py', 'requirements-agent.txt',
 ]
 
 REQUEST_TIMEOUT = 60
