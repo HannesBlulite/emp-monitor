@@ -344,7 +344,7 @@ a:hover {
 }
 
 .employee-name {
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-lg);
     font-weight: 700;
     margin-bottom: 2px;
     text-transform: uppercase;
@@ -364,13 +364,7 @@ a:hover {
     color: var(--color-text-muted);
 }
 
-.employee-pc {
-    font-size: var(--font-size-xs);
-    color: var(--color-text-muted);
-    background: var(--color-surface-elevated);
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-}
+
 
 
 /* --- Card Metrics --- */
