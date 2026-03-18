@@ -1291,8 +1291,8 @@ tbody tr:hover {
 }
 
 
-/* --- Modal --- */
-.modal {
+/* --- Edit Rule Modal --- */
+.edit-modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -1305,7 +1305,7 @@ tbody tr:hover {
     justify-content: center;
 }
 
-.modal-content {
+.edit-modal .modal-content {
     background: var(--color-surface-elevated);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
@@ -1314,24 +1314,24 @@ tbody tr:hover {
     max-width: 500px;
 }
 
-.modal-content h3 {
+.edit-modal .modal-content h3 {
     margin: 0 0 var(--space-md) 0;
     color: var(--color-text);
 }
 
-.modal-content .form-group {
+.edit-modal .form-group {
     margin-bottom: var(--space-md);
 }
 
-.modal-content .form-group label {
+.edit-modal .form-group label {
     display: block;
     margin-bottom: 4px;
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
 }
 
-.modal-content .form-group input,
-.modal-content .form-group select {
+.edit-modal .form-group input,
+.edit-modal .form-group select {
     width: 100%;
     padding: 8px 12px;
     background: var(--color-surface);
