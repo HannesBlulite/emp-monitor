@@ -137,9 +137,9 @@
 
 <!-- Screenshot Modal -->
 <div id="screenshotModal" class="modal" onclick="closeScreenshot(event)">
+    <button class="modal-close-btn" onclick="forceCloseModal()" title="Close">&#10005; Close</button>
     <button class="modal-nav modal-nav--prev" onclick="navScreenshot(-1)" title="Previous">&#10094;</button>
     <div class="modal-content">
-        <span class="modal-close" onclick="closeScreenshot(event)">&times;</span>
         <img id="modalImage" src="" alt="Screenshot">
         <div class="modal-info">
             <span id="modalTime"></span>
@@ -185,11 +185,14 @@ function openScreenshot(url, time, monitor) {
 }
 
 function closeScreenshot(e) {
-    if (e.target === document.getElementById('screenshotModal') ||
-        e.target.classList.contains('modal-close')) {
-        document.getElementById('screenshotModal').classList.remove('active');
-        document.body.style.overflow = '';
+    if (e.target === document.getElementById('screenshotModal')) {
+        forceCloseModal();
     }
+}
+
+function forceCloseModal() {
+    document.getElementById('screenshotModal').classList.remove('active');
+    document.body.style.overflow = '';
 }
 
 function navScreenshot(dir) {
@@ -200,7 +203,7 @@ function navScreenshot(dir) {
 document.addEventListener('keydown', function(e) {
     var modal = document.getElementById('screenshotModal');
     if (!modal.classList.contains('active')) return;
-    if (e.key === 'Escape') { modal.classList.remove('active'); document.body.style.overflow = ''; }
+    if (e.key === 'Escape') { forceCloseModal(); }
     if (e.key === 'ArrowLeft') navScreenshot(-1);
     if (e.key === 'ArrowRight') navScreenshot(1);
 });
