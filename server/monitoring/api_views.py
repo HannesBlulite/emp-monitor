@@ -212,7 +212,11 @@ def activity_report(request):
         r'|^[0-9a-f]{8}-[0-9a-f]{4}-'
         r'|^https?://'
         r'|\\'
-        r'|^[\d.]+$',
+        r'|^[\d.]+$'
+        r'|@'
+        r'|\|'
+        r'|\.namespace\('
+        r'|_[0-9a-f]{4,}_',
         re.IGNORECASE,
     )
     for domain in new_domains:
