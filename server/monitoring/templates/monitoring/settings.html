@@ -222,6 +222,7 @@
                         <th>Pattern</th>
                         <th>Category</th>
                         <th>Description</th>
+                        <th>Date Added</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -236,6 +237,7 @@
                             </span>
                         </td>
                         <td>{{ rule.description|default:"—" }}</td>
+                        <td>{{ rule.created_at|date:"d M Y H:i" }}</td>
                         <td class="action-buttons">
                             <button type="button" class="btn btn-xs btn-outline"
                                     onclick="editRule({{ rule.id }}, '{{ rule.match_type }}', '{{ rule.pattern }}', '{{ rule.category }}', '{{ rule.description|escapejs }}')">

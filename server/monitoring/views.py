@@ -529,7 +529,7 @@ def settings_view(request):
     rule_type_filter = request.GET.get('rule_type', '')
     rule_category_filter = request.GET.get('rule_category', '')
 
-    rules_qs = ProductivityRule.objects.all()
+    rules_qs = ProductivityRule.objects.all().order_by('-created_at')
     if rule_search:
         rules_qs = rules_qs.filter(pattern__icontains=rule_search)
     if rule_type_filter:
