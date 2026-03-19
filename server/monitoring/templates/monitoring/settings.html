@@ -215,9 +215,21 @@
                 Showing {{ rules|length }} of {{ total_rules }} rules
                 (page {{ rule_page }} of {{ total_pages }})
             </p>
+
+            <!-- Bulk Action Bar -->
+            <div id="bulkActionBar" class="bulk-action-bar" style="display:none;">
+                <span id="bulkCount">0</span> rules selected —
+                <button class="btn btn-sm btn-success" onclick="bulkAction('productive')">Set Productive</button>
+                <button class="btn btn-sm btn-warning" onclick="bulkAction('unproductive')">Set Unproductive</button>
+                <button class="btn btn-sm btn-outline" onclick="bulkAction('neutral')">Set Neutral</button>
+                <button class="btn btn-sm btn-danger" onclick="bulkAction('delete')">Delete Selected</button>
+                <button class="btn btn-sm btn-outline" onclick="toggleSelectAll(false)">Deselect All</button>
+            </div>
+
             <table>
                 <thead>
                     <tr>
+                        <th style="width:30px;"><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this.checked)"></th>
                         <th>Type</th>
                         <th>Pattern</th>
                         <th>Category</th>
@@ -229,20 +241,21 @@
                 <tbody>
                     {% for rule in rules %}
                     <tr id="rule-row-{{ rule.id }}">
+                        <td><input type="checkbox" class="rule-checkbox" value="{{ rule.id }}" onchange="updateBulkBar()"></td>
                         <td>{{ rule.get_match_type_display }}</td>
                         <td><code>{{ rule.pattern }}</code></td>
                         <td>
-                            <span class="category-badge category-{{ rule.category }}">
-                                {{ rule.category }}
-                            </span>
+                            <select class="inline-category-select category-{{ rule.category }}"
+                                    data-rule-id="{{ rule.id }}"
+                                    onchange="inlineUpdateCategory(this)">
+                                <option value="productive" {% if rule.category == 'productive' %}selected{% endif %}>Productive</option>
+                                <option value="unproductive" {% if rule.category == 'unproductive' %}selected{% endif %}>Unproductive</option>
+                                <option value="neutral" {% if rule.category == 'neutral' %}selected{% endif %}>Neutral</option>
+                            </select>
                         </td>
                         <td>{{ rule.description|default:"—" }}</td>
                         <td>{{ rule.created_at|date:"d M Y H:i" }}</td>
                         <td class="action-buttons">
-                            <button type="button" class="btn btn-xs btn-outline"
-                                    onclick="editRule({{ rule.id }}, '{{ rule.match_type }}', '{{ rule.pattern }}', '{{ rule.category }}', '{{ rule.description|escapejs }}')">
-                                Edit
-                            </button>
                             <form method="post" style="display:inline">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete_rule">
@@ -355,8 +368,110 @@ function closeEditModal() {
 }
 
 // Close modal on background click
-document.getElementById('editRuleModal').addEventListener('click', function(e) {
-    if (e.target === this) closeEditModal();
-});
+const editModal = document.getElementById('editRuleModal');
+if (editModal) {
+    editModal.addEventListener('click', function(e) {
+        if (e.target === this) closeEditModal();
+    });
+}
+
+// ── Inline category editing ────────────────────────────────────────────
+function inlineUpdateCategory(selectEl) {
+    const ruleId = selectEl.dataset.ruleId;
+    const newCategory = selectEl.value;
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    selectEl.className = 'inline-category-select category-' + newCategory;
+
+    fetch('{% url "monitoring:ajax_update_rule_category" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+        body: JSON.stringify({rule_id: parseInt(ruleId), category: newCategory}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status !== 'ok') {
+            alert('Failed to update: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(() => alert('Network error — change may not have saved'));
+}
+
+// ── Bulk selection ─────────────────────────────────────────────────────
+function getCheckedIds() {
+    return Array.from(document.querySelectorAll('.rule-checkbox:checked'))
+        .map(cb => parseInt(cb.value));
+}
+
+function updateBulkBar() {
+    const ids = getCheckedIds();
+    const bar = document.getElementById('bulkActionBar');
+    const count = document.getElementById('bulkCount');
+    if (ids.length > 0) {
+        bar.style.display = 'flex';
+        count.textContent = ids.length;
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
+function toggleSelectAll(checked) {
+    document.querySelectorAll('.rule-checkbox').forEach(cb => cb.checked = checked);
+    const selectAll = document.getElementById('selectAllCheckbox');
+    if (selectAll) selectAll.checked = checked;
+    updateBulkBar();
+}
+
+function bulkAction(action) {
+    const ids = getCheckedIds();
+    if (!ids.length) return;
+
+    const labels = {productive: 'Productive', unproductive: 'Unproductive', neutral: 'Neutral', delete: 'DELETE'};
+    const msg = action === 'delete'
+        ? 'Delete ' + ids.length + ' selected rules? This cannot be undone.'
+        : 'Set ' + ids.length + ' selected rules to "' + labels[action] + '"?';
+
+    if (!confirm(msg)) return;
+
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    fetch('{% url "monitoring:ajax_bulk_rule_action" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+        },
+        body: JSON.stringify({rule_ids: ids, action: action}),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.status === 'ok') {
+            if (action === 'delete') {
+                ids.forEach(id => {
+                    const row = document.getElementById('rule-row-' + id);
+                    if (row) row.remove();
+                });
+            } else {
+                ids.forEach(id => {
+                    const row = document.getElementById('rule-row-' + id);
+                    if (row) {
+                        const sel = row.querySelector('.inline-category-select');
+                        if (sel) {
+                            sel.value = action;
+                            sel.className = 'inline-category-select category-' + action;
+                        }
+                    }
+                });
+            }
+            toggleSelectAll(false);
+        } else {
+            alert('Error: ' + (data.error || 'Unknown'));
+        }
+    })
+    .catch(() => alert('Network error'));
+}
 </script>
 {% endblock %}

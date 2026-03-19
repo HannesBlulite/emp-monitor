@@ -15,6 +15,10 @@ urlpatterns = [
     path('settings/', views.settings_view, name='settings'),
     path('settings/export-rules/', views.export_rules_csv, name='export_rules_csv'),
 
+    # AJAX endpoints for inline rule editing
+    path('api/rules/update-category/', views.ajax_update_rule_category, name='ajax_update_rule_category'),
+    path('api/rules/bulk-action/', views.ajax_bulk_rule_action, name='ajax_bulk_rule_action'),
+
     # API endpoints (for agent communication)
     path('api/screenshots/upload/', api_views.screenshot_upload, name='api_screenshot_upload'),
     path('api/activity/report/', api_views.activity_report, name='api_activity_report'),

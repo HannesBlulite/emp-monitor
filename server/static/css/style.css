@@ -691,6 +691,66 @@ tbody tr:hover {
     color: var(--color-neutral);
 }
 
+/* --- Inline Category Dropdown --- */
+.inline-category-select {
+    padding: 3px 6px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+    appearance: none;
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    background-size: 10px;
+    padding-right: 18px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23666'/%3E%3C/svg%3E");
+}
+.inline-category-select:hover,
+.inline-category-select:focus {
+    border-color: var(--color-border);
+}
+select.category-productive {
+    background-color: var(--color-success-bg);
+    color: var(--color-productive);
+}
+select.category-unproductive {
+    background-color: var(--color-danger-bg);
+    color: var(--color-unproductive);
+}
+select.category-neutral {
+    background-color: var(--color-muted-bg);
+    color: var(--color-neutral);
+}
+
+/* --- Bulk Action Bar --- */
+.bulk-action-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-surface-elevated);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--space-sm);
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.bulk-action-bar .btn {
+    white-space: nowrap;
+}
+.rule-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
 
 /* --- Usage Bars --- */
 .usage-bar {

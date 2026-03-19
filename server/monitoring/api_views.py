@@ -8,6 +8,7 @@ REST API endpoints for agent-to-server communication:
 """
 
 import logging
+import re
 from datetime import datetime, timedelta
 
 from django.core.files.base import ContentFile
@@ -205,7 +206,18 @@ def activity_report(request):
             new_apps.add(process_name.lower().replace('.exe', ''))
 
     # Auto-create neutral ProductivityRules for newly seen domains and apps
+    _JUNK_DOMAIN = re.compile(
+        r'\.pdf$|\.docx?$|\.xlsx?$|\.pptx?$|\.txt$|\.csv$'
+        r'|\.png$|\.jpe?g$'
+        r'|^[0-9a-f]{8}-[0-9a-f]{4}-'
+        r'|^https?://'
+        r'|\\'
+        r'|^[\d.]+$',
+        re.IGNORECASE,
+    )
     for domain in new_domains:
+        if _JUNK_DOMAIN.search(domain):
+            continue
         ProductivityRule.objects.get_or_create(
             match_type='domain',
             pattern=domain,

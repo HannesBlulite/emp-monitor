@@ -491,6 +491,53 @@ def _fmt_duration(seconds):
 
 
 @login_required
+def ajax_update_rule_category(request):
+    """AJAX endpoint: update a single rule's category inline."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+        rule_id = int(data['rule_id'])
+        category = data['category']
+        if category not in ('productive', 'unproductive', 'neutral'):
+            return JsonResponse({'error': 'Invalid category'}, status=400)
+        updated = ProductivityRule.objects.filter(id=rule_id).update(category=category)
+        if not updated:
+            return JsonResponse({'error': 'Rule not found'}, status=404)
+        return JsonResponse({'status': 'ok'})
+    except (KeyError, ValueError, json.JSONDecodeError):
+        return JsonResponse({'error': 'Invalid request'}, status=400)
+
+
+@login_required
+def ajax_bulk_rule_action(request):
+    """AJAX endpoint: bulk update or delete rules."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+        rule_ids = [int(x) for x in data['rule_ids']]
+        action = data['action']
+
+        if not rule_ids:
+            return JsonResponse({'error': 'No rules selected'}, status=400)
+
+        qs = ProductivityRule.objects.filter(id__in=rule_ids)
+
+        if action in ('productive', 'unproductive', 'neutral'):
+            count = qs.update(category=action)
+            return JsonResponse({'status': 'ok', 'updated': count})
+        elif action == 'delete':
+            count = qs.count()
+            qs.delete()
+            return JsonResponse({'status': 'ok', 'deleted': count})
+        else:
+            return JsonResponse({'error': 'Invalid action'}, status=400)
+    except (KeyError, ValueError, json.JSONDecodeError):
+        return JsonResponse({'error': 'Invalid request'}, status=400)
+
+
+@login_required
 def settings_view(request):
     """Admin settings page."""
     settings = AgentSettings.get_settings()
