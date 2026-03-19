@@ -442,10 +442,20 @@ def timesheets(request):
             early_ot_logs = logs.filter(created_at__time__lt=SCHEDULE_START)
             late_ot_logs = logs.filter(created_at__time__gt=SCHEDULE_END)
 
-            # Aggregate active seconds per period
-            sched_active = (sched_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
-            early_ot_active = (early_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
-            late_ot_active = (late_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+            # Aggregate active + idle seconds per period (idle = at desk but
+            # no keyboard/mouse, e.g. phone calls, Teams, reading documents)
+            sched_active = (
+                (sched_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+                + (sched_logs.aggregate(t=Sum('idle_seconds'))['t'] or 0)
+            )
+            early_ot_active = (
+                (early_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+                + (early_ot_logs.aggregate(t=Sum('idle_seconds'))['t'] or 0)
+            )
+            late_ot_active = (
+                (late_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+                + (late_ot_logs.aggregate(t=Sum('idle_seconds'))['t'] or 0)
+            )
             total_ot_active = early_ot_active + late_ot_active
 
             # Productivity classification — scheduled period
