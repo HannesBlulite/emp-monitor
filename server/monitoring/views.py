@@ -8,7 +8,7 @@ import csv
 import io
 import json
 from collections import defaultdict
-from datetime import timedelta, date as date_type, datetime as dt_type
+from datetime import timedelta, date as date_type, datetime as dt_type, time as time_type
 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Count, Avg, Max, Min, Q
@@ -296,6 +296,9 @@ def timesheets(request):
     """Timesheets view — all employees with clock-in/out, hours, productivity."""
     today = timezone.now().date()
 
+    SCHEDULE_START = time_type(7, 0)
+    SCHEDULE_END = time_type(15, 30)
+
     # Parse date range
     date_from_str = request.GET.get('date_from')
     date_to_str = request.GET.get('date_to')
@@ -343,6 +346,34 @@ def timesheets(request):
         for r in ProductivityRule.objects.filter(match_type='domain')
     }
 
+    def _classify_usage(usage_qs, app_rules, domain_rules):
+        """Classify app usage entries and return (productive_secs, unproductive_secs)."""
+        productive = 0
+        unproductive = 0
+        app_totals = usage_qs.filter(domain='').values('process_name').annotate(
+            total=Sum('duration_seconds')
+        )
+        for entry in app_totals:
+            name = entry['process_name']
+            if name == '[website]':
+                continue
+            app_key = name.lower().replace('.exe', '')
+            cat = app_rules.get(app_key, app_rules.get(name.lower(), 'neutral'))
+            if cat == 'productive':
+                productive += entry['total']
+            elif cat == 'unproductive':
+                unproductive += entry['total']
+        domain_totals = usage_qs.exclude(domain='').values('domain').annotate(
+            total=Sum('duration_seconds')
+        )
+        for entry in domain_totals:
+            cat = _match_domain_rule(entry['domain'], domain_rules)
+            if cat == 'productive':
+                productive += entry['total']
+            elif cat == 'unproductive':
+                unproductive += entry['total']
+        return productive, unproductive
+
     employees = Employee.objects.filter(is_active=True).order_by('display_name')
     rows = []
 
@@ -355,16 +386,7 @@ def timesheets(request):
         if not logs.exists():
             continue
 
-        summary = logs.aggregate(
-            total_active=Sum('active_seconds'),
-            total_idle=Sum('idle_seconds'),
-        )
-
-        active_secs = summary['total_active'] or 0
-        idle_secs = summary['total_idle'] or 0
-        total_secs = active_secs + idle_secs
-
-        # Clock in = earliest activity, clock out = latest activity
+        # Clock in / clock out
         times = logs.aggregate(
             clock_in=Min('created_at'),
             clock_out=Max('created_at'),
@@ -372,64 +394,76 @@ def timesheets(request):
         clock_in = times['clock_in']
         clock_out = times['clock_out']
 
-        # Calculate total office hours from clock in to clock out
-        if clock_in and clock_out and clock_out > clock_in:
-            office_secs = (clock_out - clock_in).total_seconds()
+        # Split logs into scheduled (07:00–15:30) vs overtime
+        sched_logs = logs.filter(
+            created_at__time__gte=SCHEDULE_START,
+            created_at__time__lte=SCHEDULE_END,
+        )
+        early_ot_logs = logs.filter(created_at__time__lt=SCHEDULE_START)
+        late_ot_logs = logs.filter(created_at__time__gt=SCHEDULE_END)
+
+        # Aggregate active seconds per period
+        sched_active = (sched_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+        early_ot_active = (early_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+        late_ot_active = (late_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+        total_ot_active = early_ot_active + late_ot_active
+
+        # Productivity classification — scheduled period
+        sched_usage = AppUsageEntry.objects.filter(
+            activity_log__in=sched_logs,
+        )
+        sched_productive, sched_unproductive = _classify_usage(
+            sched_usage, app_rules, domain_rules
+        )
+
+        # Productivity classification — overtime period
+        ot_logs = logs.filter(
+            Q(created_at__time__lt=SCHEDULE_START) |
+            Q(created_at__time__gt=SCHEDULE_END)
+        )
+        ot_usage = AppUsageEntry.objects.filter(
+            activity_log__in=ot_logs,
+        )
+        ot_productive, ot_unproductive = _classify_usage(
+            ot_usage, app_rules, domain_rules
+        )
+
+        # Productivity percentages
+        sched_prod_pct = (
+            round(sched_productive / sched_active * 100, 1)
+            if sched_active > 0 else 0
+        )
+        ot_prod_pct = (
+            round(ot_productive / total_ot_active * 100, 1)
+            if total_ot_active > 0 else 0
+        )
+
+        # Attendance status based on clock-in time
+        if clock_in:
+            ci_time = clock_in.time()
+            if ci_time <= SCHEDULE_START:
+                status = 'on_time'
+            elif ci_time <= time_type(7, 15):
+                status = 'late'
+            else:
+                status = 'very_late'
         else:
-            office_secs = total_secs
-
-        # Productivity classification
-        app_usage = AppUsageEntry.objects.filter(
-            activity_log__employee=emp,
-            activity_log__created_at__date__gte=date_from,
-            activity_log__created_at__date__lte=date_to,
-        )
-
-        productive_secs = 0
-        unproductive_secs = 0
-
-        # App-based classification
-        app_totals = app_usage.filter(domain='').values('process_name').annotate(
-            total=Sum('duration_seconds')
-        )
-        for entry in app_totals:
-            name = entry['process_name']
-            if name == '[website]':
-                continue
-            app_key = name.lower().replace('.exe', '')
-            cat = app_rules.get(app_key, app_rules.get(name.lower(), 'neutral'))
-            if cat == 'productive':
-                productive_secs += entry['total']
-            elif cat == 'unproductive':
-                unproductive_secs += entry['total']
-
-        # Domain-based classification
-        domain_totals = app_usage.exclude(domain='').values('domain').annotate(
-            total=Sum('duration_seconds')
-        )
-        for entry in domain_totals:
-            cat = _match_domain_rule(entry['domain'], domain_rules)
-            if cat == 'productive':
-                productive_secs += entry['total']
-            elif cat == 'unproductive':
-                unproductive_secs += entry['total']
-
-        # Productivity percentage = productive / active
-        productivity_pct = (
-            round(productive_secs / active_secs * 100, 1)
-            if active_secs > 0 else 0
-        )
+            status = 'absent'
 
         rows.append({
             'employee': emp,
+            'status': status,
             'clock_in': clock_in,
             'clock_out': clock_out,
-            'total_hours': _fmt_duration(total_secs),
-            'office_hours': _fmt_duration(office_secs),
-            'active_hours': _fmt_duration(active_secs),
-            'productive_hours': _fmt_duration(productive_secs),
-            'unproductive_hours': _fmt_duration(unproductive_secs),
-            'productivity_pct': productivity_pct,
+            'sched_active': _fmt_duration(sched_active),
+            'sched_productive': _fmt_duration(sched_productive),
+            'sched_unproductive': _fmt_duration(sched_unproductive),
+            'sched_prod_pct': sched_prod_pct,
+            'early_ot': _fmt_duration(early_ot_active),
+            'late_ot': _fmt_duration(late_ot_active),
+            'total_ot': _fmt_duration(total_ot_active),
+            'ot_productive': _fmt_duration(ot_productive),
+            'ot_prod_pct': ot_prod_pct,
         })
 
     context = {

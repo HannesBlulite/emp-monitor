@@ -1527,3 +1527,45 @@ tbody tr:hover {
     background: var(--color-danger-bg);
     color: var(--color-unproductive);
 }
+
+/* Status badges for timesheets */
+.status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: var(--radius-xl);
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.status-on_time {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+}
+
+.status-late {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+}
+
+.status-very_late {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+}
+
+.status-absent {
+    background: var(--color-danger-bg);
+    color: var(--color-danger);
+}
+
+/* Grouped table header */
+.th-group {
+    text-align: center !important;
+    border-bottom: 2px solid var(--color-border);
+}
+
+.thead-sub th {
+    padding-top: 6px;
+    padding-bottom: 10px;
+    font-size: 10px;
+}
