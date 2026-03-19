@@ -347,9 +347,10 @@ def timesheets(request):
     }
 
     def _classify_usage(usage_qs, app_rules, domain_rules):
-        """Classify app usage entries and return (productive_secs, unproductive_secs)."""
+        """Classify app usage entries and return (productive_secs, unproductive_secs, neutral_secs)."""
         productive = 0
         unproductive = 0
+        neutral = 0
         app_totals = usage_qs.filter(domain='').values('process_name').annotate(
             total=Sum('duration_seconds')
         )
@@ -363,6 +364,8 @@ def timesheets(request):
                 productive += entry['total']
             elif cat == 'unproductive':
                 unproductive += entry['total']
+            else:
+                neutral += entry['total']
         domain_totals = usage_qs.exclude(domain='').values('domain').annotate(
             total=Sum('duration_seconds')
         )
@@ -372,7 +375,9 @@ def timesheets(request):
                 productive += entry['total']
             elif cat == 'unproductive':
                 unproductive += entry['total']
-        return productive, unproductive
+            else:
+                neutral += entry['total']
+        return productive, unproductive, neutral
 
     employees = Employee.objects.filter(is_active=True).order_by('display_name')
     rows = []
@@ -414,7 +419,7 @@ def timesheets(request):
             sched_usage = AppUsageEntry.objects.filter(
                 activity_log__in=sched_logs,
             )
-            sched_productive, sched_unproductive = _classify_usage(
+            sched_productive, sched_unproductive, sched_neutral = _classify_usage(
                 sched_usage, app_rules, domain_rules
             )
 
@@ -426,18 +431,20 @@ def timesheets(request):
             ot_usage = AppUsageEntry.objects.filter(
                 activity_log__in=ot_logs,
             )
-            ot_productive, ot_unproductive = _classify_usage(
+            ot_productive, ot_unproductive, ot_neutral = _classify_usage(
                 ot_usage, app_rules, domain_rules
             )
 
-            # Productivity percentages
+            # Productivity percentages (productive / total classified time)
+            sched_classified = sched_productive + sched_unproductive + sched_neutral
             sched_prod_pct = (
-                round(sched_productive / sched_active * 100, 1)
-                if sched_active > 0 else 0
+                round(sched_productive / sched_classified * 100, 1)
+                if sched_classified > 0 else 0
             )
+            ot_classified = ot_productive + ot_unproductive + ot_neutral
             ot_prod_pct = (
-                round(ot_productive / total_ot_active * 100, 1)
-                if total_ot_active > 0 else 0
+                round(ot_productive / ot_classified * 100, 1)
+                if ot_classified > 0 else 0
             )
 
             # Attendance status based on clock-in time
