@@ -320,6 +320,7 @@ def timesheets(request):
 
     SCHEDULE_START = time_type(7, 0)
     SCHEDULE_END = time_type(15, 30)
+    SCHEDULE_WORK_SECONDS = 8 * 3600  # 8.5h window minus 30min lunch = 8h
 
     # Parse date range
     date_from_str = request.GET.get('date_from')
@@ -467,16 +468,16 @@ def timesheets(request):
                 ot_usage, app_rules, domain_rules
             )
 
-            # Productivity percentages (productive / total classified time)
-            sched_classified = sched_productive + sched_unproductive + sched_neutral
+            # Productivity percentages
+            # Schedule: productive time as % of 8-hour working day
             sched_prod_pct = (
-                round(sched_productive / sched_classified * 100, 1)
-                if sched_classified > 0 else 0
+                round(sched_productive / SCHEDULE_WORK_SECONDS * 100, 1)
+                if SCHEDULE_WORK_SECONDS > 0 else 0
             )
-            ot_classified = ot_productive + ot_unproductive + ot_neutral
+            # Overtime: productive time as % of total OT active time
             ot_prod_pct = (
-                round(ot_productive / ot_classified * 100, 1)
-                if ot_classified > 0 else 0
+                round(ot_productive / total_ot_active * 100, 1)
+                if total_ot_active > 0 else 0
             )
 
             # Attendance status based on clock-in time
