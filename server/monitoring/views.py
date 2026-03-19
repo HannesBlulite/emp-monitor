@@ -377,94 +377,100 @@ def timesheets(request):
     employees = Employee.objects.filter(is_active=True).order_by('display_name')
     rows = []
 
-    for emp in employees:
-        logs = emp.activity_logs.filter(
-            created_at__date__gte=date_from,
-            created_at__date__lte=date_to,
-        )
+    # Build one row per employee per date
+    num_days = (date_to - date_from).days + 1
+    for day_offset in range(num_days):
+        current_date = date_from + timedelta(days=day_offset)
 
-        if not logs.exists():
-            continue
+        for emp in employees:
+            logs = emp.activity_logs.filter(created_at__date=current_date)
 
-        # Clock in / clock out
-        times = logs.aggregate(
-            clock_in=Min('created_at'),
-            clock_out=Max('created_at'),
-        )
-        clock_in = times['clock_in']
-        clock_out = times['clock_out']
+            if not logs.exists():
+                continue
 
-        # Split logs into scheduled (07:00–15:30) vs overtime
-        sched_logs = logs.filter(
-            created_at__time__gte=SCHEDULE_START,
-            created_at__time__lte=SCHEDULE_END,
-        )
-        early_ot_logs = logs.filter(created_at__time__lt=SCHEDULE_START)
-        late_ot_logs = logs.filter(created_at__time__gt=SCHEDULE_END)
+            # Clock in / clock out for this specific day
+            times = logs.aggregate(
+                clock_in=Min('created_at'),
+                clock_out=Max('created_at'),
+            )
+            clock_in = times['clock_in']
+            clock_out = times['clock_out']
 
-        # Aggregate active seconds per period
-        sched_active = (sched_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
-        early_ot_active = (early_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
-        late_ot_active = (late_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
-        total_ot_active = early_ot_active + late_ot_active
+            # Split logs into scheduled (07:00–15:30) vs overtime
+            sched_logs = logs.filter(
+                created_at__time__gte=SCHEDULE_START,
+                created_at__time__lte=SCHEDULE_END,
+            )
+            early_ot_logs = logs.filter(created_at__time__lt=SCHEDULE_START)
+            late_ot_logs = logs.filter(created_at__time__gt=SCHEDULE_END)
 
-        # Productivity classification — scheduled period
-        sched_usage = AppUsageEntry.objects.filter(
-            activity_log__in=sched_logs,
-        )
-        sched_productive, sched_unproductive = _classify_usage(
-            sched_usage, app_rules, domain_rules
-        )
+            # Aggregate active seconds per period
+            sched_active = (sched_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+            early_ot_active = (early_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+            late_ot_active = (late_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
+            total_ot_active = early_ot_active + late_ot_active
 
-        # Productivity classification — overtime period
-        ot_logs = logs.filter(
-            Q(created_at__time__lt=SCHEDULE_START) |
-            Q(created_at__time__gt=SCHEDULE_END)
-        )
-        ot_usage = AppUsageEntry.objects.filter(
-            activity_log__in=ot_logs,
-        )
-        ot_productive, ot_unproductive = _classify_usage(
-            ot_usage, app_rules, domain_rules
-        )
+            # Productivity classification — scheduled period
+            sched_usage = AppUsageEntry.objects.filter(
+                activity_log__in=sched_logs,
+            )
+            sched_productive, sched_unproductive = _classify_usage(
+                sched_usage, app_rules, domain_rules
+            )
 
-        # Productivity percentages
-        sched_prod_pct = (
-            round(sched_productive / sched_active * 100, 1)
-            if sched_active > 0 else 0
-        )
-        ot_prod_pct = (
-            round(ot_productive / total_ot_active * 100, 1)
-            if total_ot_active > 0 else 0
-        )
+            # Productivity classification — overtime period
+            ot_logs = logs.filter(
+                Q(created_at__time__lt=SCHEDULE_START) |
+                Q(created_at__time__gt=SCHEDULE_END)
+            )
+            ot_usage = AppUsageEntry.objects.filter(
+                activity_log__in=ot_logs,
+            )
+            ot_productive, ot_unproductive = _classify_usage(
+                ot_usage, app_rules, domain_rules
+            )
 
-        # Attendance status based on clock-in time
-        if clock_in:
-            ci_time = clock_in.time()
-            if ci_time <= SCHEDULE_START:
-                status = 'on_time'
-            elif ci_time <= time_type(7, 15):
-                status = 'late'
+            # Productivity percentages
+            sched_prod_pct = (
+                round(sched_productive / sched_active * 100, 1)
+                if sched_active > 0 else 0
+            )
+            ot_prod_pct = (
+                round(ot_productive / total_ot_active * 100, 1)
+                if total_ot_active > 0 else 0
+            )
+
+            # Attendance status based on clock-in time
+            if clock_in:
+                ci_time = clock_in.time()
+                if ci_time <= SCHEDULE_START:
+                    status = 'on_time'
+                elif ci_time <= time_type(7, 15):
+                    status = 'late'
+                else:
+                    status = 'very_late'
             else:
-                status = 'very_late'
-        else:
-            status = 'absent'
+                status = 'absent'
 
-        rows.append({
-            'employee': emp,
-            'status': status,
-            'clock_in': clock_in,
-            'clock_out': clock_out,
-            'sched_active': _fmt_duration(sched_active),
-            'sched_productive': _fmt_duration(sched_productive),
-            'sched_unproductive': _fmt_duration(sched_unproductive),
-            'sched_prod_pct': sched_prod_pct,
-            'early_ot': _fmt_duration(early_ot_active),
-            'late_ot': _fmt_duration(late_ot_active),
-            'total_ot': _fmt_duration(total_ot_active),
-            'ot_productive': _fmt_duration(ot_productive),
-            'ot_prod_pct': ot_prod_pct,
-        })
+            rows.append({
+                'employee': emp,
+                'date': current_date,
+                'status': status,
+                'clock_in': clock_in,
+                'clock_out': clock_out,
+                'sched_active': _fmt_duration(sched_active),
+                'sched_productive': _fmt_duration(sched_productive),
+                'sched_unproductive': _fmt_duration(sched_unproductive),
+                'sched_prod_pct': sched_prod_pct,
+                'early_ot': _fmt_duration(early_ot_active),
+                'late_ot': _fmt_duration(late_ot_active),
+                'total_ot': _fmt_duration(total_ot_active),
+                'ot_productive': _fmt_duration(ot_productive),
+                'ot_prod_pct': ot_prod_pct,
+            })
+
+    # Default sort: most recent date first, then name
+    rows.sort(key=lambda r: (-r['date'].toordinal(), r['employee'].display_name))
 
     context = {
         'rows': rows,

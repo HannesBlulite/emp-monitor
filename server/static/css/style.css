@@ -1569,3 +1569,39 @@ tbody tr:hover {
     padding-bottom: 10px;
     font-size: 10px;
 }
+
+/* Timesheet filter bar */
+.timesheet-filter-bar {
+    margin-bottom: var(--space-md);
+}
+
+.ts-filter-input {
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    width: 280px;
+    max-width: 100%;
+}
+
+.ts-filter-input::placeholder {
+    color: var(--color-text-secondary);
+}
+
+/* Sortable column headers */
+.timesheet-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.timesheet-table th.sortable:hover {
+    color: var(--color-primary);
+}
+
+.sort-arrow {
+    font-size: 10px;
+    margin-left: 4px;
+    opacity: 0.6;
+}

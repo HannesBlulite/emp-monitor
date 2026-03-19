@@ -36,20 +36,27 @@
     {% endif %}
 </div>
 
+<!-- Filter Bar -->
+<div class="timesheet-filter-bar">
+    <input type="text" id="ts-name-filter" class="ts-filter-input" placeholder="Filter by employee name…">
+</div>
+
 <!-- Timesheets Table -->
 {% if rows %}
 <div class="timesheet-table-wrap">
-    <table class="timesheet-table">
+    <table class="timesheet-table" id="ts-table">
         <thead>
             <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th>Clock In</th>
-                <th>Clock Out</th>
+                <th class="sortable" data-col="0" data-type="text">Date <span class="sort-arrow">▼</span></th>
+                <th class="sortable" data-col="1" data-type="text">Name <span class="sort-arrow"></span></th>
+                <th class="sortable" data-col="2" data-type="text">Status <span class="sort-arrow"></span></th>
+                <th class="sortable" data-col="3" data-type="text">Clock In <span class="sort-arrow"></span></th>
+                <th class="sortable" data-col="4" data-type="text">Clock Out <span class="sort-arrow"></span></th>
                 <th colspan="4" class="th-group">Schedule (07:00 – 15:30)</th>
                 <th colspan="4" class="th-group">Overtime</th>
             </tr>
             <tr class="thead-sub">
+                <th></th>
                 <th></th>
                 <th></th>
                 <th></th>
@@ -66,9 +73,10 @@
         </thead>
         <tbody>
             {% for row in rows %}
-            <tr>
+            <tr data-name="{{ row.employee.display_name|lower }}" data-date="{{ row.date|date:'Y-m-d' }}">
+                <td data-sort="{{ row.date|date:'Y-m-d' }}">{{ row.date|date:"d M Y" }}</td>
                 <td>
-                    <a href="{% url 'monitoring:employee_detail' row.employee.employee_id %}?date={{ date_from|date:'Y-m-d' }}" class="employee-link">
+                    <a href="{% url 'monitoring:employee_detail' row.employee.employee_id %}?date={{ row.date|date:'Y-m-d' }}" class="employee-link">
                         {{ row.employee.display_name }}
                     </a>
                 </td>
@@ -77,8 +85,8 @@
                         {% if row.status == 'on_time' %}On Time{% elif row.status == 'late' %}Late{% elif row.status == 'very_late' %}Very Late{% else %}Absent{% endif %}
                     </span>
                 </td>
-                <td>{{ row.clock_in|date:"d-m-Y H:i"|default:"—" }}</td>
-                <td>{{ row.clock_out|date:"d-m-Y H:i"|default:"—" }}</td>
+                <td>{{ row.clock_in|date:"H:i"|default:"—" }}</td>
+                <td>{{ row.clock_out|date:"H:i"|default:"—" }}</td>
                 <td>{{ row.sched_active }}</td>
                 <td class="text-productive">{{ row.sched_productive }}</td>
                 <td class="text-unproductive">{{ row.sched_unproductive }}</td>
@@ -110,4 +118,63 @@
 </div>
 {% endif %}
 
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    // --- Name filter ---
+    const filterInput = document.getElementById('ts-name-filter');
+    const table = document.getElementById('ts-table');
+    if (!filterInput || !table) return;
+    const tbody = table.querySelector('tbody');
+
+    filterInput.addEventListener('input', function() {
+        const term = this.value.toLowerCase().trim();
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(function(row) {
+            const name = row.getAttribute('data-name') || '';
+            row.style.display = name.includes(term) ? '' : 'none';
+        });
+    });
+
+    // --- Column sort ---
+    let currentSortCol = 0;
+    let currentSortAsc = false; // default: date descending (most recent first)
+
+    const headers = table.querySelectorAll('thead tr:first-child th.sortable');
+    headers.forEach(function(th) {
+        th.style.cursor = 'pointer';
+        th.addEventListener('click', function() {
+            const col = parseInt(this.getAttribute('data-col'));
+            if (col === currentSortCol) {
+                currentSortAsc = !currentSortAsc;
+            } else {
+                currentSortCol = col;
+                currentSortAsc = true;
+            }
+            sortTable(col, currentSortAsc);
+            // Update arrows
+            headers.forEach(function(h) {
+                h.querySelector('.sort-arrow').textContent = '';
+            });
+            this.querySelector('.sort-arrow').textContent = currentSortAsc ? '▲' : '▼';
+        });
+    });
+
+    function sortTable(colIndex, ascending) {
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort(function(a, b) {
+            const aCell = a.cells[colIndex];
+            const bCell = b.cells[colIndex];
+            let aVal = (aCell.getAttribute('data-sort') || aCell.textContent).trim().toLowerCase();
+            let bVal = (bCell.getAttribute('data-sort') || bCell.textContent).trim().toLowerCase();
+            if (aVal < bVal) return ascending ? -1 : 1;
+            if (aVal > bVal) return ascending ? 1 : -1;
+            return 0;
+        });
+        rows.forEach(function(row) { tbody.appendChild(row); });
+    }
+})();
+</script>
 {% endblock %}
