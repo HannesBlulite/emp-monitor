@@ -8,7 +8,7 @@ REST API endpoints for agent-to-server communication:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.core.files.base import ContentFile
 from django.http import FileResponse
@@ -130,6 +130,14 @@ def activity_report(request):
         )
 
     data = request.data
+
+    # ── Deduplication: reject if this employee reported within the last 30s ──
+    recent_cutoff = timezone.now() - timedelta(seconds=30)
+    if ActivityLog.objects.filter(employee=employee, created_at__gte=recent_cutoff).exists():
+        return Response(
+            {'status': 'duplicate_skipped'},
+            status=status.HTTP_200_OK
+        )
 
     activity_log = ActivityLog.objects.create(
         employee=employee,
