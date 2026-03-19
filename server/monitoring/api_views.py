@@ -20,7 +20,7 @@ from rest_framework.response import Response
 
 from .models import (
     Employee, AgentToken, Screenshot, ActivityLog,
-    AppUsageEntry, AgentSettings, AgentPackage,
+    AppUsageEntry, AgentSettings, AgentPackage, ProductivityRule,
 )
 
 logger = logging.getLogger('monitoring.api')
@@ -160,6 +160,8 @@ def activity_report(request):
 
     # Save window log entries
     window_log = data.get('window_log', [])
+    new_domains = set()
+    new_apps = set()
     for entry in window_log:
         ts_str = entry.get('timestamp', '')
         try:
@@ -169,13 +171,49 @@ def activity_report(request):
         except (ValueError, TypeError):
             ts = None
 
+        entry_domain = entry.get('domain', '')
+        entry_process = entry.get('process_name', 'unknown')
+
         AppUsageEntry.objects.create(
             activity_log=activity_log,
-            process_name=entry.get('process_name', 'unknown'),
+            process_name=entry_process,
             window_title=entry.get('window_title', ''),
-            domain=entry.get('domain', ''),
+            domain=entry_domain,
             duration_seconds=float(entry.get('duration_seconds', 0)),
             timestamp=ts,
+        )
+
+        if entry_domain:
+            new_domains.add(entry_domain)
+        elif entry_process and entry_process not in ('[website]', 'unknown'):
+            new_apps.add(entry_process.lower().replace('.exe', ''))
+
+    # Also collect from app_usage and domain_usage dicts
+    for domain in domain_usage:
+        if domain:
+            new_domains.add(domain)
+    for process_name in app_usage:
+        if process_name and process_name not in ('[website]', 'unknown'):
+            new_apps.add(process_name.lower().replace('.exe', ''))
+
+    # Auto-create neutral ProductivityRules for newly seen domains and apps
+    for domain in new_domains:
+        ProductivityRule.objects.get_or_create(
+            match_type='domain',
+            pattern=domain,
+            defaults={
+                'category': 'neutral',
+                'description': f'Auto-added from {employee.display_name}',
+            },
+        )
+    for app_name in new_apps:
+        ProductivityRule.objects.get_or_create(
+            match_type='app',
+            pattern=app_name,
+            defaults={
+                'category': 'neutral',
+                'description': f'Auto-added from {employee.display_name}',
+            },
         )
 
     logger.info(
