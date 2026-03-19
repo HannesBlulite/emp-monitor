@@ -96,17 +96,34 @@ def apply_update(server_url, session, download_url):
 
 
 def restart_agent():
-    """Restart the agent process via Task Scheduler."""
+    """
+    Restart the agent process via Task Scheduler.
+
+    Uses a temporary .cmd script launched in a new process group so that
+    it survives when Task Scheduler kills the agent's process tree during
+    Stop-ScheduledTask.
+    """
     logger.info("Restarting agent via Task Scheduler...")
     try:
-        # Stop then start the scheduled task — this kills the current process
-        # and starts a fresh one
+        # Write a self-deleting restart script
+        restart_script = os.path.join(tempfile.gettempdir(), 'emp_agent_restart.cmd')
+        with open(restart_script, 'w') as f:
+            f.write('@echo off\r\n')
+            f.write('timeout /t 5 /nobreak >nul\r\n')
+            f.write('schtasks /End /TN EmpMonitorAgent 2>nul\r\n')
+            f.write('timeout /t 3 /nobreak >nul\r\n')
+            f.write('schtasks /Run /TN EmpMonitorAgent\r\n')
+            f.write(f'del "%~f0"\r\n')
+
+        # Launch via cmd.exe in a completely new process group
         subprocess.Popen(
-            ['powershell', '-Command',
-             'Stop-ScheduledTask -TaskName EmpMonitorAgent; '
-             'Start-Sleep -Seconds 2; '
-             'Start-ScheduledTask -TaskName EmpMonitorAgent'],
-            creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+            ['cmd.exe', '/c', restart_script],
+            creationflags=(
+                subprocess.CREATE_NO_WINDOW
+                | subprocess.DETACHED_PROCESS
+                | subprocess.CREATE_NEW_PROCESS_GROUP
+            ),
+            close_fds=True,
         )
     except Exception as e:
         logger.error(f"Restart via Task Scheduler failed: {e}")
