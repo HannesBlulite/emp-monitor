@@ -121,7 +121,7 @@ def employee_detail(request, employee_id):
     # Screenshots for selected date
     all_day_screenshots = employee.screenshots.filter(
         captured_at__date=selected_date
-    ).order_by('-captured_at')
+    ).order_by('captured_at')
 
     # Hour filter — optional, e.g. ?hour=8 means 08:00–08:59
     hour_str = request.GET.get('hour')
