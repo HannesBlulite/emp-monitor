@@ -184,18 +184,21 @@ def employee_detail(request, employee_id):
     active_secs = summary['total_active'] or 0
     idle_secs = summary['total_idle'] or 0
 
-    # App usage breakdown for the day
+    # App usage breakdown for the day (summary entries only — no window_log dupes)
     app_usage = AppUsageEntry.objects.filter(
         activity_log__employee=employee,
         activity_log__created_at__date=selected_date,
+        timestamp__isnull=True,
+        domain='',
     ).values('process_name').annotate(
         total_duration=Sum('duration_seconds')
     ).order_by('-total_duration')[:20]
 
-    # Domain (website) usage breakdown for the day
+    # Domain (website) usage breakdown for the day (summary entries only)
     domain_usage = AppUsageEntry.objects.filter(
         activity_log__employee=employee,
         activity_log__created_at__date=selected_date,
+        timestamp__isnull=True,
     ).exclude(domain='').values('domain').annotate(
         total_duration=Sum('duration_seconds')
     ).order_by('-total_duration')[:20]
@@ -228,9 +231,6 @@ def employee_detail(request, employee_id):
 
     # Classify websites
     classified_websites = []
-    productive_seconds = 0
-    unproductive_seconds = 0
-    neutral_seconds = 0
     for site in domain_usage:
         domain = site['domain']
         category = _match_domain_rule(domain, domain_rules)
@@ -241,21 +241,43 @@ def employee_detail(request, employee_id):
             'duration_minutes': round(dur / 60, 1),
             'category': category,
         })
-        if category == 'productive':
+
+    # Rule-based productivity — use window_log entries (non-overlapping slices)
+    # to avoid double-counting app_usage + domain_usage summaries.
+    wl_entries = AppUsageEntry.objects.filter(
+        activity_log__employee=employee,
+        activity_log__created_at__date=selected_date,
+        timestamp__isnull=False,
+    )
+    productive_seconds = 0
+    unproductive_seconds = 0
+    neutral_seconds = 0
+    for wl_domain in wl_entries.exclude(domain='').values('domain').annotate(
+        total=Sum('duration_seconds')
+    ):
+        cat = _match_domain_rule(wl_domain['domain'], domain_rules)
+        dur = wl_domain['total']
+        if cat == 'productive':
             productive_seconds += dur
-        elif category == 'unproductive':
+        elif cat == 'unproductive':
             unproductive_seconds += dur
         else:
             neutral_seconds += dur
-
-    # Also count app-based productivity
-    for app in classified_apps:
-        if app['category'] == 'productive':
-            productive_seconds += app['duration_seconds']
-        elif app['category'] == 'unproductive':
-            unproductive_seconds += app['duration_seconds']
+    for wl_app in wl_entries.filter(domain='').values('process_name').annotate(
+        total=Sum('duration_seconds')
+    ):
+        name = wl_app['process_name']
+        if name in ('[website]', 'unknown'):
+            continue
+        app_key = name.lower().replace('.exe', '')
+        cat = app_rules.get(app_key, app_rules.get(name.lower(), 'neutral'))
+        dur = wl_app['total']
+        if cat == 'productive':
+            productive_seconds += dur
+        elif cat == 'unproductive':
+            unproductive_seconds += dur
         else:
-            neutral_seconds += app['duration_seconds']
+            neutral_seconds += dur
 
     # Rule-based productivity percentage
     classified_total = productive_seconds + unproductive_seconds + neutral_seconds
@@ -347,36 +369,46 @@ def timesheets(request):
     }
 
     def _classify_usage(usage_qs, app_rules, domain_rules):
-        """Classify app usage entries and return (productive_secs, unproductive_secs, neutral_secs)."""
+        """Classify app usage entries and return (productive_secs, unproductive_secs, neutral_secs).
+
+        Uses only window_log entries (timestamp IS NOT NULL) which are
+        non-overlapping time slices. The app_usage/domain_usage summary
+        entries overlap for browser usage and would double-count.
+        """
         productive = 0
         unproductive = 0
         neutral = 0
-        app_totals = usage_qs.filter(domain='').values('process_name').annotate(
-            total=Sum('duration_seconds')
-        )
-        for entry in app_totals:
-            name = entry['process_name']
-            if name == '[website]':
-                continue
-            app_key = name.lower().replace('.exe', '')
-            cat = app_rules.get(app_key, app_rules.get(name.lower(), 'neutral'))
-            if cat == 'productive':
-                productive += entry['total']
-            elif cat == 'unproductive':
-                unproductive += entry['total']
-            else:
-                neutral += entry['total']
-        domain_totals = usage_qs.exclude(domain='').values('domain').annotate(
+        wl = usage_qs.filter(timestamp__isnull=False)
+        # Entries with a domain → classify by domain rules
+        domain_totals = wl.exclude(domain='').values('domain').annotate(
             total=Sum('duration_seconds')
         )
         for entry in domain_totals:
             cat = _match_domain_rule(entry['domain'], domain_rules)
+            dur = entry['total']
             if cat == 'productive':
-                productive += entry['total']
+                productive += dur
             elif cat == 'unproductive':
-                unproductive += entry['total']
+                unproductive += dur
             else:
-                neutral += entry['total']
+                neutral += dur
+        # Entries without a domain → classify by app rules
+        app_totals = wl.filter(domain='').values('process_name').annotate(
+            total=Sum('duration_seconds')
+        )
+        for entry in app_totals:
+            name = entry['process_name']
+            if name in ('[website]', 'unknown'):
+                continue
+            app_key = name.lower().replace('.exe', '')
+            cat = app_rules.get(app_key, app_rules.get(name.lower(), 'neutral'))
+            dur = entry['total']
+            if cat == 'productive':
+                productive += dur
+            elif cat == 'unproductive':
+                unproductive += dur
+            else:
+                neutral += dur
         return productive, unproductive, neutral
 
     employees = Employee.objects.filter(is_active=True).order_by('display_name')
