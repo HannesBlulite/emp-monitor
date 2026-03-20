@@ -145,6 +145,7 @@
                 <label for="notif-note">Add a note (optional)</label>
                 <input type="text" id="notif-note" class="form-control" placeholder="e.g. Please check your hours">
             </div>
+            {% csrf_token %}
             <button class="btn btn-primary" id="notif-send" style="width:100%;margin-top:10px;">&#128276; Send Notification</button>
             <div id="notif-result" style="margin-top:10px;display:none;"></div>
         </div>
@@ -367,7 +368,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken'),
+                        'X-CSRFToken': document.querySelector('#notification-modal [name=csrfmiddlewaretoken]').value,
                     },
                     body: JSON.stringify({
                         employee_ids: [empId],
@@ -395,12 +396,6 @@
         });
     }
 
-    function getCookie(name) {
-        var value = '; ' + document.cookie;
-        var parts = value.split('; ' + name + '=');
-        if (parts.length === 2) return parts.pop().split(';').shift();
-        return '';
-    }
 })();
 </script>
 {% endblock %}
