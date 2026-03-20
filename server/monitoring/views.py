@@ -320,7 +320,16 @@ def timesheets(request):
 
     SCHEDULE_START = time_type(7, 0)
     SCHEDULE_END = time_type(15, 30)
-    SCHEDULE_WORK_SECONDS = 8 * 3600  # 8.5h window minus 30min lunch = 8h
+
+    import zoneinfo
+    LOCAL_TZ = zoneinfo.ZoneInfo('Africa/Johannesburg')
+
+    def _time_to_secs(t):
+        """Convert a time object to seconds since midnight."""
+        return t.hour * 3600 + t.minute * 60 + t.second
+
+    SCHED_START_S = _time_to_secs(SCHEDULE_START)  # 25200
+    SCHED_END_S = _time_to_secs(SCHEDULE_END)      # 55800
 
     # Parse date range
     date_from_str = request.GET.get('date_from')
@@ -434,29 +443,24 @@ def timesheets(request):
             clock_in = times['clock_in']
             clock_out = times['clock_out']
 
-            # Split logs into scheduled (07:00–15:30) vs overtime
+            # Convert clock_in/out to SAST for schedule boundary calculations
+            ci_local = timezone.localtime(clock_in, LOCAL_TZ)
+            co_local = timezone.localtime(clock_out, LOCAL_TZ)
+            ci_s = _time_to_secs(ci_local.time())
+            co_s = _time_to_secs(co_local.time())
+
+            # Wall-clock durations in each period (seconds)
+            early_ot_secs = max(0, min(co_s, SCHED_START_S) - ci_s) if ci_s < SCHED_START_S else 0
+            late_ot_secs = max(0, co_s - max(ci_s, SCHED_END_S)) if co_s > SCHED_END_S else 0
+            sched_secs = max(0, min(co_s, SCHED_END_S) - max(ci_s, SCHED_START_S))
+            total_ot_secs = early_ot_secs + late_ot_secs
+
+            # Split logs into scheduled (07:00–15:30) vs overtime for
+            # productivity classification (still needs activity-log queries)
             sched_logs = logs.filter(
                 created_at__time__gte=SCHEDULE_START,
                 created_at__time__lte=SCHEDULE_END,
             )
-            early_ot_logs = logs.filter(created_at__time__lt=SCHEDULE_START)
-            late_ot_logs = logs.filter(created_at__time__gt=SCHEDULE_END)
-
-            # Aggregate active + idle seconds per period (idle = at desk but
-            # no keyboard/mouse, e.g. phone calls, Teams, reading documents)
-            sched_active = (
-                (sched_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
-                + (sched_logs.aggregate(t=Sum('idle_seconds'))['t'] or 0)
-            )
-            early_ot_active = (
-                (early_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
-                + (early_ot_logs.aggregate(t=Sum('idle_seconds'))['t'] or 0)
-            )
-            late_ot_active = (
-                (late_ot_logs.aggregate(t=Sum('active_seconds'))['t'] or 0)
-                + (late_ot_logs.aggregate(t=Sum('idle_seconds'))['t'] or 0)
-            )
-            total_ot_active = early_ot_active + late_ot_active
 
             # Productivity classification — scheduled period
             sched_usage = AppUsageEntry.objects.filter(
@@ -478,29 +482,24 @@ def timesheets(request):
                 ot_usage, app_rules, domain_rules
             )
 
-            # Productivity percentages
-            # Schedule: productive time as % of 8-hour working day
+            # Productivity percentages (productive time / wall-clock time)
             sched_prod_pct = (
-                round(sched_productive / SCHEDULE_WORK_SECONDS * 100, 1)
-                if SCHEDULE_WORK_SECONDS > 0 else 0
+                round(sched_productive / sched_secs * 100, 1)
+                if sched_secs > 0 else 0
             )
-            # Overtime: productive time as % of total OT active time
             ot_prod_pct = (
-                round(ot_productive / total_ot_active * 100, 1)
-                if total_ot_active > 0 else 0
+                round(ot_productive / total_ot_secs * 100, 1)
+                if total_ot_secs > 0 else 0
             )
 
-            # Attendance status based on clock-in time
-            if clock_in:
-                ci_time = clock_in.time()
-                if ci_time <= SCHEDULE_START:
-                    status = 'on_time'
-                elif ci_time <= time_type(7, 15):
-                    status = 'late'
-                else:
-                    status = 'very_late'
+            # Attendance status based on SAST clock-in time
+            ci_time_sast = ci_local.time()
+            if ci_time_sast <= SCHEDULE_START:
+                status = 'on_time'
+            elif ci_time_sast <= time_type(7, 15):
+                status = 'late'
             else:
-                status = 'absent'
+                status = 'very_late'
 
             rows.append({
                 'employee': emp,
@@ -508,13 +507,13 @@ def timesheets(request):
                 'status': status,
                 'clock_in': clock_in,
                 'clock_out': clock_out,
-                'sched_active': _fmt_duration(sched_active),
+                'sched_active': _fmt_duration(sched_secs),
                 'sched_productive': _fmt_duration(sched_productive),
                 'sched_unproductive': _fmt_duration(sched_unproductive),
                 'sched_prod_pct': sched_prod_pct,
-                'early_ot': _fmt_duration(early_ot_active),
-                'late_ot': _fmt_duration(late_ot_active),
-                'total_ot': _fmt_duration(total_ot_active),
+                'early_ot': _fmt_duration(early_ot_secs),
+                'late_ot': _fmt_duration(late_ot_secs),
+                'total_ot': _fmt_duration(total_ot_secs),
                 'ot_productive': _fmt_duration(ot_productive),
                 'ot_prod_pct': ot_prod_pct,
             })
