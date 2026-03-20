@@ -49,13 +49,16 @@ def _show_toast_powershell(title, message, app_name):
 [Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom, ContentType = WindowsRuntime] | Out-Null
 
 $template = @"
-<toast>
+<toast scenario="reminder" duration="long">
     <visual>
         <binding template="ToastGeneric">
             <text>{safe_title}</text>
             <text>{safe_message}</text>
         </binding>
     </visual>
+    <actions>
+        <action content="Dismiss" arguments="dismiss" activationType="system"/>
+    </actions>
 </toast>
 "@
 

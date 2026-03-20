@@ -252,20 +252,15 @@
         var msg = 'Hi ' + name + ',\n\nYour timesheet summary:\n';
         dataRows.forEach(function(r) {
             msg +=
-                '\n' + r.date + '\n' +
-                'Status: ' + r.status + '\n' +
-                'Clock In: ' + r.clockIn + '  |  Clock Out: ' + r.clockOut + '\n' +
-                'Total Active: ' + r.totalActive + '\n\n' +
-                'Schedule (07:00 - 15:30):\n' +
-                '  Active: ' + r.schedActive + '\n' +
-                '  Productive: ' + r.schedProductive + '\n' +
-                '  Unproductive: ' + r.schedUnproductive + '\n' +
-                '  Productivity: ' + r.schedProdPct + '\n\n' +
-                'Overtime:\n' +
-                '  Early: ' + r.earlyOT + '\n' +
-                '  Late: ' + r.lateOT + '\n' +
-                '  Total: ' + r.totalOT + '\n' +
-                '  Productivity: ' + r.otProdPct + '\n';
+                '\n' + r.date +
+                ' | ' + r.status +
+                ' | In: ' + r.clockIn +
+                ' Out: ' + r.clockOut +
+                '\nActive: ' + r.totalActive +
+                ' | Prod: ' + r.schedProdPct +
+                '\nOvertime: ' + r.totalOT +
+                (r.otProdPct && r.otProdPct !== '—' ? ' (' + r.otProdPct + ')' : '') +
+                '\n';
         });
         if (note) msg += '\nNote: ' + note + '\n';
         return msg;
