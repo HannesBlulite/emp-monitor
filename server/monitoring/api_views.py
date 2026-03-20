@@ -16,8 +16,16 @@ from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+
+
+class CsrfExemptSessionAuth(SessionAuthentication):
+    """Session auth without CSRF enforcement (for AJAX from our own templates)."""
+    def enforce_csrf(self, request):
+        return
+
 
 from .models import (
     Employee, AgentToken, Screenshot, ActivityLog,
@@ -402,6 +410,7 @@ def notification_ack(request, pk):
 
 
 @api_view(['POST'])
+@authentication_classes([CsrfExemptSessionAuth])
 def send_notification(request):
     """
     Manager endpoint: send a notification to one or more employees.
