@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; color: #333; }
+  .container { max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  .header { background: #2563eb; color: #fff; padding: 20px 24px; }
+  .header h1 { margin: 0; font-size: 20px; }
+  .header p { margin: 4px 0 0; opacity: 0.85; font-size: 14px; }
+  .body { padding: 24px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th { background: #f1f5f9; text-align: left; padding: 8px 12px; font-size: 13px; color: #64748b; border-bottom: 2px solid #e2e8f0; }
+  td { padding: 8px 12px; font-size: 14px; border-bottom: 1px solid #e2e8f0; }
+  .status-on_time { color: #16a34a; font-weight: bold; }
+  .status-late { color: #d97706; font-weight: bold; }
+  .status-very_late { color: #dc2626; font-weight: bold; }
+  .summary { margin-top: 16px; padding: 12px 16px; background: #f8fafc; border-radius: 6px; font-size: 14px; }
+  .summary strong { color: #1e40af; }
+  .footer { padding: 16px 24px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>Daily Timesheet Report</h1>
+    <p>{{ employee.display_name }} &mdash; {{ date|date:"l, d F Y" }}</p>
+  </div>
+  <div class="body">
+    {% if row %}
+    <table>
+      <tr><th>Clock In</th><td>{{ row.clock_in|time:"H:i" }}</td></tr>
+      <tr><th>Clock Out</th><td>{{ row.clock_out|time:"H:i" }}</td></tr>
+      <tr>
+        <th>Status</th>
+        <td class="status-{{ row.status }}">
+          {% if row.status == 'on_time' %}On Time{% elif row.status == 'late' %}Late{% else %}Very Late{% endif %}
+        </td>
+      </tr>
+      <tr><th>Total Active</th><td>{{ row.total_active }}</td></tr>
+      <tr><th>Scheduled Active</th><td>{{ row.sched_active }}</td></tr>
+      <tr><th>Scheduled Productivity</th><td>{{ row.sched_prod_pct }}%</td></tr>
+      <tr><th>Overtime</th><td>{{ row.total_ot }}</td></tr>
+      {% if row.ot_prod_pct %}<tr><th>Overtime Productivity</th><td>{{ row.ot_prod_pct }}%</td></tr>{% endif %}
+    </table>
+
+    <div class="summary">
+      You were active for <strong>{{ row.total_active }}</strong> today
+      with a scheduled productivity of <strong>{{ row.sched_prod_pct }}%</strong>.
+      {% if row.total_ot != "00:00:00" %}You also worked <strong>{{ row.total_ot }}</strong> overtime.{% endif %}
+    </div>
+    {% else %}
+    <p>No activity was recorded for you on this date.</p>
+    {% endif %}
+  </div>
+  <div class="footer">
+    EMP Monitor &mdash; Automated daily report. Do not reply to this email.
+  </div>
+</div>
+</body>
+</html>

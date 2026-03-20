@@ -12,9 +12,9 @@ from .models import (
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ['display_name', 'employee_id', 'department', 'pc_name', 'is_active', 'created_at']
+    list_display = ['display_name', 'employee_id', 'email', 'department', 'pc_name', 'is_active', 'created_at']
     list_filter = ['is_active', 'department']
-    search_fields = ['display_name', 'employee_id', 'pc_name']
+    search_fields = ['display_name', 'employee_id', 'pc_name', 'email']
 
 
 @admin.register(AgentToken)

@@ -1,0 +1,12 @@
+[Unit]
+Description=EMP Monitor — Send daily timesheet emails
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/emp-monitor/server
+EnvironmentFile=/opt/emp-monitor/.env
+ExecStart=/opt/emp-monitor/venv/bin/python manage.py send_daily_timesheet_email
+User=root
+
+[Install]
+WantedBy=multi-user.target

@@ -201,26 +201,32 @@ $action  = New-ScheduledTaskAction `
     -Argument "`"$InstallDir\main.py`"" `
     -WorkingDirectory $InstallDir
 
-$trigger = New-ScheduledTaskTrigger -AtLogOn
+$triggerLogon = New-ScheduledTaskTrigger -AtLogOn
+
+# Repeating trigger: every 15 min, indefinitely — acts as a watchdog
+# Task Scheduler won't start a new instance if one is already running
+$triggerRepeat = New-ScheduledTaskTrigger -Once -At '00:00' `
+    -RepetitionInterval (New-TimeSpan -Minutes 15)
 
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries `
     -StartWhenAvailable `
-    -RestartCount 3 `
+    -RestartCount 999 `
     -RestartInterval (New-TimeSpan -Minutes 1) `
-    -ExecutionTimeLimit (New-TimeSpan -Hours 0)
+    -ExecutionTimeLimit (New-TimeSpan -Hours 0) `
+    -MultipleInstances IgnoreNew
 
 Register-ScheduledTask `
     -TaskName $TaskName `
     -Action $action `
-    -Trigger $trigger `
+    -Trigger @($triggerLogon, $triggerRepeat) `
     -Settings $settings `
     -Description 'EMP Monitor Agent - captures screenshots and tracks activity' `
     -RunLevel Limited `
     -Force | Out-Null
 
-Write-Ok "Scheduled task '$TaskName' registered (runs at logon)"
+Write-Ok "Scheduled task '$TaskName' registered (runs at logon + watchdog every 15 min)"
 
 # ── Step 6: Start the agent now ─────────────────────────────────────────
 Write-Step 'Starting agent'

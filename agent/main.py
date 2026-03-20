@@ -155,6 +155,14 @@ class EmpMonitorAgent:
         try:
             while self.running:
                 time.sleep(1)
+                # Check that worker threads are alive; restart any that died
+                for t in threads:
+                    if not t.is_alive() and self.running:
+                        self.logger.warning(f"Thread {t.name} died — restarting it")
+                        target = t._target
+                        new_t = threading.Thread(target=target, daemon=True, name=t.name)
+                        new_t.start()
+                        threads[threads.index(t)] = new_t
         except KeyboardInterrupt:
             self.logger.info("Ctrl+C received — shutting down")
             self.stop()
@@ -348,12 +356,43 @@ class EmpMonitorAgent:
 # ---------------------------------------------------------------------------
 
 def main():
-    """Run the agent in console mode."""
+    """Run the agent with automatic crash recovery.
+
+    If the agent crashes for any reason, it logs the error and restarts
+    after a short backoff delay.  The delay grows from 10 s to a max of
+    5 minutes, and resets after 60 s of successful running.
+    """
+    MAX_BACKOFF = 300  # 5 minutes
+    INITIAL_BACKOFF = 10
+    STABLE_AFTER = 60  # reset backoff after running this long
+
     config = load_config()
     setup_logging(config.get('log_level', 'INFO'))
+    logger = logging.getLogger('emp_agent')
 
-    agent = EmpMonitorAgent(config)
-    agent.start()
+    backoff = INITIAL_BACKOFF
+    while True:
+        start_ts = time.time()
+        try:
+            agent = EmpMonitorAgent(config)
+            agent.start()
+            # start() only returns on clean shutdown (Ctrl-C)
+            break
+        except SystemExit:
+            break
+        except Exception:
+            elapsed = time.time() - start_ts
+            logger.critical(
+                "Agent crashed — restarting in %d s", backoff, exc_info=True,
+            )
+            time.sleep(backoff)
+            # If it ran long enough, it was probably stable — reset backoff
+            if elapsed >= STABLE_AFTER:
+                backoff = INITIAL_BACKOFF
+            else:
+                backoff = min(backoff * 2, MAX_BACKOFF)
+            # Reload config in case it was fixed
+            config = load_config()
 
 
 if __name__ == '__main__':

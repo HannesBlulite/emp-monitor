@@ -22,6 +22,7 @@ class Employee(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     employee_id = models.CharField(max_length=50, unique=True, help_text="Internal employee ID")
     display_name = models.CharField(max_length=200)
+    email = models.EmailField(blank=True, default='', help_text="Employee email for daily timesheet reports")
     department = models.CharField(max_length=100, blank=True)
     pc_name = models.CharField(max_length=100, blank=True, help_text="Computer name")
     is_active = models.BooleanField(default=True)
