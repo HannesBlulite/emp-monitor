@@ -249,21 +249,15 @@
 
     // Build a notification message from row data
     function buildMessage(name, dataRows, note) {
-        var msg = 'Hi ' + name + ',\n\nYour timesheet summary:\n';
+        var lines = [];
         dataRows.forEach(function(r) {
-            msg +=
-                '\n' + r.date +
-                ' | ' + r.status +
-                ' | In: ' + r.clockIn +
-                ' Out: ' + r.clockOut +
-                '\nActive: ' + r.totalActive +
-                ' | Prod: ' + r.schedProdPct +
-                '\nOvertime: ' + r.totalOT +
-                (r.otProdPct && r.otProdPct !== '—' ? ' (' + r.otProdPct + ')' : '') +
-                '\n';
+            lines.push(r.date + ' | ' + r.status);
+            lines.push('In: ' + r.clockIn + '  Out: ' + r.clockOut + '  Active: ' + r.totalActive);
+            lines.push('Prod: ' + r.schedProdPct + '  |  OT: ' + r.totalOT +
+                (r.otProdPct && r.otProdPct !== '—' ? ' (' + r.otProdPct + ')' : ''));
         });
-        if (note) msg += '\nNote: ' + note + '\n';
-        return msg;
+        if (note) lines.push('Note: ' + note);
+        return lines.join('\n');
     }
 
     // Populate the employee dropdown from unique employees in the table
@@ -367,7 +361,7 @@
                     },
                     body: JSON.stringify({
                         employee_ids: [empId],
-                        title: 'Timesheet Summary',
+                        title: 'Timesheet: ' + emp.name,
                         message: message,
                         notification_type: 'overtime',
                     }),
