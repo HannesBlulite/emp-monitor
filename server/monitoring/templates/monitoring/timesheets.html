@@ -53,8 +53,8 @@
                 <th class="sortable" data-col="3" data-type="text">Clock In <span class="sort-arrow"></span></th>
                 <th class="sortable" data-col="4" data-type="text">Clock Out <span class="sort-arrow"></span></th>
                 <th class="sortable" data-col="5" data-type="text">Total Active <span class="sort-arrow"></span></th>
-                <th colspan="4" class="th-group">Schedule (07:00 – 15:30)</th>
-                <th colspan="4" class="th-group">Overtime</th>
+                <th colspan="4" class="th-group th-group-schedule col-group-start">Schedule (07:00 – 15:30)</th>
+                <th colspan="4" class="th-group th-group-overtime col-group-start">Overtime</th>
             </tr>
             <tr class="thead-sub">
                 <th></th>
@@ -63,11 +63,11 @@
                 <th></th>
                 <th></th>
                 <th></th>
-                <th>Active</th>
+                <th class="col-group-start">Active</th>
                 <th>Productive</th>
                 <th>Unprod.</th>
                 <th>Prod %</th>
-                <th>Early</th>
+                <th class="col-group-start">Early</th>
                 <th>Late</th>
                 <th>Total</th>
                 <th>Prod %</th>
@@ -90,18 +90,18 @@
                 <td>{{ row.clock_in|date:"H:i"|default:"—" }}</td>
                 <td>{{ row.clock_out|date:"H:i"|default:"—" }}</td>
                 <td><strong>{{ row.total_active }}</strong></td>
-                <td>{{ row.sched_active }}</td>
-                <td class="text-productive">{{ row.sched_productive }}</td>
-                <td class="text-unproductive">{{ row.sched_unproductive }}</td>
-                <td>
+                <td class="col-schedule col-group-start">{{ row.sched_active }}</td>
+                <td class="col-schedule text-productive">{{ row.sched_productive }}</td>
+                <td class="col-schedule text-unproductive">{{ row.sched_unproductive }}</td>
+                <td class="col-schedule">
                     <span class="productivity-badge {% if row.sched_prod_pct >= 50 %}badge-productive{% elif row.sched_prod_pct >= 25 %}badge-neutral{% else %}badge-unproductive{% endif %}">
                         {{ row.sched_prod_pct }}%
                     </span>
                 </td>
-                <td>{{ row.early_ot }}</td>
-                <td>{{ row.late_ot }}</td>
-                <td><strong>{{ row.total_ot }}</strong></td>
-                <td>
+                <td class="col-overtime col-group-start">{{ row.early_ot }}</td>
+                <td class="col-overtime">{{ row.late_ot }}</td>
+                <td class="col-overtime"><strong>{{ row.total_ot }}</strong></td>
+                <td class="col-overtime">
                     {% if row.total_ot != "00:00:00" %}
                     <span class="productivity-badge {% if row.ot_prod_pct >= 50 %}badge-productive{% elif row.ot_prod_pct >= 25 %}badge-neutral{% else %}badge-unproductive{% endif %}">
                         {{ row.ot_prod_pct }}%

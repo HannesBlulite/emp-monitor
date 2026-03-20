@@ -1624,10 +1624,40 @@ select.category-neutral {
     border-bottom: 2px solid var(--color-border);
 }
 
+.th-group-schedule {
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.th-group-overtime {
+    background: rgba(245, 158, 11, 0.08);
+}
+
 .thead-sub th {
     padding-top: 6px;
     padding-bottom: 10px;
     font-size: 10px;
+}
+
+/* Column group dividers — thick left border on first cell of each group */
+.col-group-start {
+    border-left: 3px solid var(--color-border) !important;
+}
+
+/* Subtle background tints for schedule and overtime columns */
+.timesheet-table td.col-schedule {
+    background: rgba(99, 102, 241, 0.03);
+}
+
+.timesheet-table td.col-overtime {
+    background: rgba(245, 158, 11, 0.03);
+}
+
+.timesheet-table tbody tr:hover td.col-schedule {
+    background: rgba(99, 102, 241, 0.07);
+}
+
+.timesheet-table tbody tr:hover td.col-overtime {
+    background: rgba(245, 158, 11, 0.07);
 }
 
 /* Timesheet filter bar */
