@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from screenshot import capture_all_monitors, save_screenshots_locally
 from activity import ActivityTracker
 from server_comm import ServerCommunicator
-from updater import check_for_update, apply_update, restart_agent
+from updater import check_for_update, apply_update, restart_agent, repair_install
 from version import AGENT_VERSION
 
 # ---------------------------------------------------------------------------
@@ -126,6 +126,15 @@ class EmpMonitorAgent:
 
         # Try to fetch latest settings from server
         self._refresh_settings()
+
+        # One-time repair check: copy any missing files from a partial update
+        try:
+            if repair_install(self.config['server_url'], self.communicator.session):
+                self.logger.info("Repair installed missing files, restarting...")
+                restart_agent()
+                return
+        except Exception as e:
+            self.logger.debug(f"Repair check skipped: {e}")
 
         # Start worker threads
         threads = [

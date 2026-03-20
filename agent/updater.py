@@ -109,6 +109,71 @@ def apply_update(server_url, session, download_url):
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
+def repair_install(server_url, session):
+    """
+    One-time repair for partial updates.
+
+    When an older updater (with a hardcoded file list) applied an update,
+    new files like notifier.py may have been skipped.  This function
+    downloads the current ZIP and copies any missing files.
+
+    Returns True if files were repaired and a restart is needed.
+    """
+    result = check_for_update(server_url, session)
+    if not result or result.get('update_available'):
+        # Either check failed or there's a real update pending — skip repair
+        return False
+
+    agent_dir = os.path.dirname(os.path.abspath(__file__))
+    download_url = result.get('download_url', '')
+    if not download_url:
+        return False
+
+    tmp_dir = tempfile.mkdtemp(prefix='empagent_repair_')
+    zip_path = os.path.join(tmp_dir, 'update.zip')
+
+    try:
+        full_url = f'{server_url.rstrip("/")}{download_url}'
+        resp = session.get(full_url, timeout=120, stream=True)
+        resp.raise_for_status()
+
+        with open(zip_path, 'wb') as f:
+            for chunk in resp.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        extract_dir = os.path.join(tmp_dir, 'extracted')
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            zf.extractall(extract_dir)
+
+        # Find files that should exist locally but don't
+        repaired = []
+        for entry in zf.namelist():
+            if '/' in entry or '\\' in entry:
+                continue
+            if entry in PROTECTED_FILES:
+                continue
+            ext = os.path.splitext(entry)[1].lower()
+            if ext not in UPDATABLE_EXTENSIONS:
+                continue
+            dst = os.path.join(agent_dir, entry)
+            if not os.path.exists(dst):
+                src = os.path.join(extract_dir, entry)
+                shutil.copy2(src, dst)
+                repaired.append(entry)
+
+        if repaired:
+            logger.info(f"Repair: copied {len(repaired)} missing files: {', '.join(repaired)}")
+            return True
+
+        return False
+
+    except Exception as e:
+        logger.debug(f"Repair check failed: {e}")
+        return False
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
 def restart_agent():
     """
     Restart the agent process via Task Scheduler.
