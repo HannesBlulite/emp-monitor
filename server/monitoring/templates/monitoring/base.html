@@ -33,7 +33,7 @@
         </div>
     </nav>
 
-    <main class="main-content">
+    <main class="main-content {% block body_class %}{% endblock %}">
         {% if messages %}
         <div class="messages">
             {% for message in messages %}
