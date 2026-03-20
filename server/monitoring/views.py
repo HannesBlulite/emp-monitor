@@ -455,12 +455,21 @@ def timesheets(request):
             sched_secs = max(0, min(co_s, SCHED_END_S) - max(ci_s, SCHED_START_S))
             total_ot_secs = early_ot_secs + late_ot_secs
 
-            # Split logs into scheduled (07:00–15:30) vs overtime for
-            # productivity classification (still needs activity-log queries)
+            # Split logs into scheduled (07:00–15:30) vs overtime
             sched_logs = logs.filter(
                 created_at__time__gte=SCHEDULE_START,
                 created_at__time__lte=SCHEDULE_END,
             )
+            ot_logs = logs.filter(
+                Q(created_at__time__lt=SCHEDULE_START) |
+                Q(created_at__time__gt=SCHEDULE_END)
+            )
+
+            # Actual desk time from activity logs (active + idle = time at desk)
+            sched_agg = sched_logs.aggregate(
+                a=Sum('active_seconds'), i=Sum('idle_seconds')
+            )
+            sched_active = (sched_agg['a'] or 0) + (sched_agg['i'] or 0)
 
             # Productivity classification — scheduled period
             sched_usage = AppUsageEntry.objects.filter(
@@ -471,10 +480,6 @@ def timesheets(request):
             )
 
             # Productivity classification — overtime period
-            ot_logs = logs.filter(
-                Q(created_at__time__lt=SCHEDULE_START) |
-                Q(created_at__time__gt=SCHEDULE_END)
-            )
             ot_usage = AppUsageEntry.objects.filter(
                 activity_log__in=ot_logs,
             )
@@ -482,10 +487,10 @@ def timesheets(request):
                 ot_usage, app_rules, domain_rules
             )
 
-            # Productivity percentages (productive time / wall-clock time)
+            # Productivity percentages (productive / desk time)
             sched_prod_pct = (
-                round(sched_productive / sched_secs * 100, 1)
-                if sched_secs > 0 else 0
+                round(sched_productive / sched_active * 100, 1)
+                if sched_active > 0 else 0
             )
             ot_prod_pct = (
                 round(ot_productive / total_ot_secs * 100, 1)
@@ -507,7 +512,7 @@ def timesheets(request):
                 'status': status,
                 'clock_in': clock_in,
                 'clock_out': clock_out,
-                'sched_active': _fmt_duration(sched_secs),
+                'sched_active': _fmt_duration(sched_active),
                 'sched_productive': _fmt_duration(sched_productive),
                 'sched_unproductive': _fmt_duration(sched_unproductive),
                 'sched_prod_pct': sched_prod_pct,
