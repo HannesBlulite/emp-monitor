@@ -465,7 +465,13 @@ def timesheets(request):
                 Q(created_at__time__gt=SCHEDULE_END)
             )
 
-            # Actual desk time from activity logs (active + idle = time at desk)
+            # Total desk time for the whole day (active + idle)
+            all_agg = logs.aggregate(
+                a=Sum('active_seconds'), i=Sum('idle_seconds')
+            )
+            total_active = (all_agg['a'] or 0) + (all_agg['i'] or 0)
+
+            # Schedule-only desk time
             sched_agg = sched_logs.aggregate(
                 a=Sum('active_seconds'), i=Sum('idle_seconds')
             )
@@ -512,6 +518,7 @@ def timesheets(request):
                 'status': status,
                 'clock_in': clock_in,
                 'clock_out': clock_out,
+                'total_active': _fmt_duration(total_active),
                 'sched_active': _fmt_duration(sched_active),
                 'sched_productive': _fmt_duration(sched_productive),
                 'sched_unproductive': _fmt_duration(sched_unproductive),

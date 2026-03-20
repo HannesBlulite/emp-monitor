@@ -52,10 +52,12 @@
                 <th class="sortable" data-col="2" data-type="text">Status <span class="sort-arrow"></span></th>
                 <th class="sortable" data-col="3" data-type="text">Clock In <span class="sort-arrow"></span></th>
                 <th class="sortable" data-col="4" data-type="text">Clock Out <span class="sort-arrow"></span></th>
+                <th class="sortable" data-col="5" data-type="text">Total Active <span class="sort-arrow"></span></th>
                 <th colspan="4" class="th-group">Schedule (07:00 – 15:30)</th>
                 <th colspan="4" class="th-group">Overtime</th>
             </tr>
             <tr class="thead-sub">
+                <th></th>
                 <th></th>
                 <th></th>
                 <th></th>
@@ -87,6 +89,7 @@
                 </td>
                 <td>{{ row.clock_in|date:"H:i"|default:"—" }}</td>
                 <td>{{ row.clock_out|date:"H:i"|default:"—" }}</td>
+                <td><strong>{{ row.total_active }}</strong></td>
                 <td>{{ row.sched_active }}</td>
                 <td class="text-productive">{{ row.sched_productive }}</td>
                 <td class="text-unproductive">{{ row.sched_unproductive }}</td>
