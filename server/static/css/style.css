@@ -1779,6 +1779,21 @@ select.category-neutral {
     font-family: inherit;
 }
 
+.notif-preview {
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    font-size: var(--font-size-sm);
+    font-family: inherit;
+    white-space: pre-wrap;
+    max-height: 300px;
+    overflow-y: auto;
+    line-height: 1.5;
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
 .page-header {
     display: flex;
     align-items: center;

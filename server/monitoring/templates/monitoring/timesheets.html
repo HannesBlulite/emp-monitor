@@ -79,7 +79,7 @@
         </thead>
         <tbody>
             {% for row in rows %}
-            <tr data-name="{{ row.employee.display_name|lower }}" data-date="{{ row.date|date:'Y-m-d' }}">
+            <tr data-name="{{ row.employee.display_name|lower }}" data-date="{{ row.date|date:'Y-m-d' }}" data-employee-id="{{ row.employee.employee_id }}">
                 <td data-sort="{{ row.date|date:'Y-m-d' }}">{{ row.date|date:"d M Y" }}</td>
                 <td>
                     <a href="{% url 'monitoring:employee_detail' row.employee.employee_id %}?date={{ row.date|date:'Y-m-d' }}" class="employee-link">
@@ -127,45 +127,25 @@
 
 <!-- Send Notification Modal -->
 <div class="modal-overlay" id="notification-modal" style="display:none;">
-    <div class="modal-dialog" style="max-width: 500px;">
+    <div class="modal-dialog" style="max-width: 560px;">
         <div class="modal-header">
-            <h3>Send Notification to Employee</h3>
+            <h3>Send Timesheet Summary</h3>
             <button class="modal-close" id="modal-close">&times;</button>
         </div>
         <div class="modal-body">
             <div class="form-group">
-                <label for="notif-employee">Employee</label>
-                <select id="notif-employee" class="form-control">
-                    <option value="all">All Employees</option>
-                    {% for row in rows %}
-                    <option value="{{ row.employee.employee_id }}"
-                            data-early="{{ row.early_ot }}"
-                            data-late="{{ row.late_ot }}"
-                            data-total="{{ row.total_ot }}"
-                            data-sched-active="{{ row.sched_active }}"
-                            data-sched-prod="{{ row.sched_prod_pct }}">
-                        {{ row.employee.display_name }}
-                    </option>
-                    {% endfor %}
-                </select>
+                <label for="notif-employee">Send to</label>
+                <select id="notif-employee" class="form-control"></select>
             </div>
             <div class="form-group">
-                <label for="notif-type">Type</label>
-                <select id="notif-type" class="form-control">
-                    <option value="overtime">Overtime Info</option>
-                    <option value="schedule">Schedule Info</option>
-                    <option value="custom">Custom Message</option>
-                </select>
+                <label>Message preview</label>
+                <pre id="notif-preview" class="notif-preview"></pre>
             </div>
             <div class="form-group">
-                <label for="notif-title">Title</label>
-                <input type="text" id="notif-title" class="form-control" value="Overtime Information">
+                <label for="notif-note">Add a note (optional)</label>
+                <input type="text" id="notif-note" class="form-control" placeholder="e.g. Please check your hours">
             </div>
-            <div class="form-group">
-                <label for="notif-message">Message</label>
-                <textarea id="notif-message" class="form-control" rows="4" placeholder="Your message to the employee..."></textarea>
-            </div>
-            <button class="btn btn-primary" id="notif-send" style="width:100%;margin-top:10px;">Send Notification</button>
+            <button class="btn btn-primary" id="notif-send" style="width:100%;margin-top:10px;">&#128276; Send Notification</button>
             <div id="notif-result" style="margin-top:10px;display:none;"></div>
         </div>
     </div>
@@ -193,7 +173,7 @@
 
     // --- Column sort ---
     let currentSortCol = 0;
-    let currentSortAsc = false; // default: date descending (most recent first)
+    let currentSortAsc = false;
 
     const headers = table.querySelectorAll('thead tr:first-child th.sortable');
     headers.forEach(function(th) {
@@ -207,7 +187,6 @@
                 currentSortAsc = true;
             }
             sortTable(col, currentSortAsc);
-            // Update arrows
             headers.forEach(function(h) {
                 h.querySelector('.sort-arrow').textContent = '';
             });
@@ -234,113 +213,191 @@
     const btnOpen = document.getElementById('btn-send-notification');
     const btnClose = document.getElementById('modal-close');
     const empSelect = document.getElementById('notif-employee');
-    const typeSelect = document.getElementById('notif-type');
-    const titleInput = document.getElementById('notif-title');
-    const messageInput = document.getElementById('notif-message');
+    const previewEl = document.getElementById('notif-preview');
+    const noteInput = document.getElementById('notif-note');
     const btnSend = document.getElementById('notif-send');
     const resultDiv = document.getElementById('notif-result');
+
+    // Read all visible table rows into structured data
+    function getTableRows() {
+        var rows = [];
+        if (!tbody) return rows;
+        tbody.querySelectorAll('tr').forEach(function(tr) {
+            if (tr.style.display === 'none') return;
+            var c = tr.cells;
+            rows.push({
+                employeeId: tr.getAttribute('data-employee-id'),
+                name: c[1].textContent.trim(),
+                date: c[0].textContent.trim(),
+                status: c[2].textContent.trim(),
+                clockIn: c[3].textContent.trim(),
+                clockOut: c[4].textContent.trim(),
+                totalActive: c[5].textContent.trim(),
+                schedActive: c[6].textContent.trim(),
+                schedProductive: c[7].textContent.trim(),
+                schedUnproductive: c[8].textContent.trim(),
+                schedProdPct: c[9].textContent.trim(),
+                earlyOT: c[10].textContent.trim(),
+                lateOT: c[11].textContent.trim(),
+                totalOT: c[12].textContent.trim(),
+                otProdPct: c[13].textContent.trim()
+            });
+        });
+        return rows;
+    }
+
+    // Build a notification message from row data
+    function buildMessage(name, dataRows, note) {
+        var msg = 'Hi ' + name + ',\n\nYour timesheet summary:\n';
+        dataRows.forEach(function(r) {
+            msg +=
+                '\n' + r.date + '\n' +
+                'Status: ' + r.status + '\n' +
+                'Clock In: ' + r.clockIn + '  |  Clock Out: ' + r.clockOut + '\n' +
+                'Total Active: ' + r.totalActive + '\n\n' +
+                'Schedule (07:00 - 15:30):\n' +
+                '  Active: ' + r.schedActive + '\n' +
+                '  Productive: ' + r.schedProductive + '\n' +
+                '  Unproductive: ' + r.schedUnproductive + '\n' +
+                '  Productivity: ' + r.schedProdPct + '\n\n' +
+                'Overtime:\n' +
+                '  Early: ' + r.earlyOT + '\n' +
+                '  Late: ' + r.lateOT + '\n' +
+                '  Total: ' + r.totalOT + '\n' +
+                '  Productivity: ' + r.otProdPct + '\n';
+        });
+        if (note) msg += '\nNote: ' + note + '\n';
+        return msg;
+    }
+
+    // Populate the employee dropdown from unique employees in the table
+    function populateSelect() {
+        var rows = getTableRows();
+        var seen = {};
+        var employees = [];
+        rows.forEach(function(r) {
+            if (!seen[r.employeeId]) {
+                seen[r.employeeId] = true;
+                employees.push({ id: r.employeeId, name: r.name });
+            }
+        });
+        empSelect.innerHTML = '';
+        if (employees.length > 1) {
+            var allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'All Employees (' + employees.length + ')';
+            empSelect.appendChild(allOpt);
+        }
+        employees.forEach(function(e) {
+            var opt = document.createElement('option');
+            opt.value = e.id;
+            opt.textContent = e.name;
+            empSelect.appendChild(opt);
+        });
+    }
+
+    // Show a preview of the message that will be sent
+    function updatePreview() {
+        var rows = getTableRows();
+        var val = empSelect.value;
+        var note = noteInput.value.trim();
+        if (val === 'all') {
+            if (rows.length === 0) { previewEl.textContent = 'No data to send.'; return; }
+            var first = rows[0];
+            var firstRows = rows.filter(function(r) { return r.employeeId === first.employeeId; });
+            previewEl.textContent = buildMessage(first.name, firstRows, note) +
+                '\n(Preview for ' + first.name + '. Each employee receives their own data.)';
+        } else {
+            var empRows = rows.filter(function(r) { return r.employeeId === val; });
+            if (empRows.length === 0) { previewEl.textContent = 'No data for this employee.'; return; }
+            previewEl.textContent = buildMessage(empRows[0].name, empRows, note);
+        }
+    }
 
     if (btnOpen) {
         btnOpen.addEventListener('click', function() {
             modal.style.display = 'flex';
             resultDiv.style.display = 'none';
+            populateSelect();
+            updatePreview();
         });
     }
     if (btnClose) {
-        btnClose.addEventListener('click', function() {
-            modal.style.display = 'none';
-        });
+        btnClose.addEventListener('click', function() { modal.style.display = 'none'; });
     }
-    // Close on overlay click
     if (modal) {
         modal.addEventListener('click', function(e) {
             if (e.target === modal) modal.style.display = 'none';
         });
     }
+    if (empSelect) empSelect.addEventListener('change', updatePreview);
+    if (noteInput) noteInput.addEventListener('input', updatePreview);
 
-    // Auto-fill message when employee is selected and type is overtime
-    if (empSelect) {
-        empSelect.addEventListener('change', autoFillMessage);
-    }
-    if (typeSelect) {
-        typeSelect.addEventListener('change', function() {
-            if (this.value === 'overtime') {
-                titleInput.value = 'Overtime Information';
-            } else if (this.value === 'schedule') {
-                titleInput.value = 'Schedule Information';
-            } else {
-                titleInput.value = '';
-            }
-            autoFillMessage();
-        });
-    }
-
-    function autoFillMessage() {
-        if (typeSelect.value !== 'overtime') return;
-        const opt = empSelect.selectedOptions[0];
-        if (!opt || opt.value === 'all') {
-            messageInput.value = '';
-            return;
-        }
-        const name = opt.textContent.trim();
-        const early = opt.getAttribute('data-early') || '00:00:00';
-        const late = opt.getAttribute('data-late') || '00:00:00';
-        const total = opt.getAttribute('data-total') || '00:00:00';
-        messageInput.value =
-            'Hi ' + name + ',\n\n' +
-            'Your overtime for today:\n' +
-            '  Early: ' + early + '\n' +
-            '  Late: ' + late + '\n' +
-            '  Total: ' + total + '\n\n' +
-            'Thank you.';
-    }
-
-    // Send notification
+    // Send notifications — one per employee with personalised data
     if (btnSend) {
         btnSend.addEventListener('click', function() {
-            const empVal = empSelect.value;
-            const empIds = empVal === 'all' ? ['all'] : [empVal];
-            const payload = {
-                employee_ids: empIds,
-                title: titleInput.value,
-                message: messageInput.value,
-                notification_type: typeSelect.value,
-            };
+            var rows = getTableRows();
+            var val = empSelect.value;
+            var note = noteInput.value.trim();
+
+            // Group rows by employee
+            var byEmployee = {};
+            rows.forEach(function(r) {
+                if (val !== 'all' && r.employeeId !== val) return;
+                if (!byEmployee[r.employeeId]) {
+                    byEmployee[r.employeeId] = { name: r.name, rows: [] };
+                }
+                byEmployee[r.employeeId].rows.push(r);
+            });
+
+            var employeeIds = Object.keys(byEmployee);
+            if (employeeIds.length === 0) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span style="color:var(--unproductive);">No employees to notify.</span>';
+                return;
+            }
 
             btnSend.disabled = true;
             btnSend.textContent = 'Sending...';
 
-            fetch('{% url "monitoring:api_send_notification" %}', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken'),
-                },
-                body: JSON.stringify(payload),
-            })
-            .then(function(resp) { return resp.json(); })
-            .then(function(data) {
-                resultDiv.style.display = 'block';
-                if (data.status === 'ok') {
-                    resultDiv.innerHTML = '<span style="color:var(--productive);">Sent ' + data.count + ' notification(s) successfully.</span>';
-                } else {
-                    resultDiv.innerHTML = '<span style="color:var(--unproductive);">Error: ' + (data.error || 'Unknown error') + '</span>';
-                }
-            })
-            .catch(function(err) {
-                resultDiv.style.display = 'block';
-                resultDiv.innerHTML = '<span style="color:var(--unproductive);">Network error: ' + err.message + '</span>';
-            })
-            .finally(function() {
-                btnSend.disabled = false;
-                btnSend.textContent = 'Send Notification';
+            var promises = employeeIds.map(function(empId) {
+                var emp = byEmployee[empId];
+                var message = buildMessage(emp.name, emp.rows, note);
+                return fetch('{% url "monitoring:api_send_notification" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                    },
+                    body: JSON.stringify({
+                        employee_ids: [empId],
+                        title: 'Timesheet Summary',
+                        message: message,
+                        notification_type: 'overtime',
+                    }),
+                }).then(function(resp) { return resp.json(); });
             });
+
+            Promise.all(promises)
+                .then(function(results) {
+                    var total = results.reduce(function(sum, r) { return sum + (r.count || 0); }, 0);
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = '<span style="color:var(--productive);">\u2713 Sent to ' + total + ' employee(s) successfully.</span>';
+                })
+                .catch(function(err) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.innerHTML = '<span style="color:var(--unproductive);">Error: ' + err.message + '</span>';
+                })
+                .finally(function() {
+                    btnSend.disabled = false;
+                    btnSend.textContent = '\uD83D\uDD14 Send Notification';
+                });
         });
     }
 
     function getCookie(name) {
-        const value = '; ' + document.cookie;
-        const parts = value.split('; ' + name + '=');
+        var value = '; ' + document.cookie;
+        var parts = value.split('; ' + name + '=');
         if (parts.length === 2) return parts.pop().split(';').shift();
         return '';
     }

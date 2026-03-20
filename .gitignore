@@ -54,6 +54,7 @@ agent/test_screenshots/
 
 # Config parameters
 agent/config.json
+config
 .env
 .env.*
 DEPLOYMENT_NOTES.local.md
