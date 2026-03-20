@@ -25,7 +25,6 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from screenshot import capture_all_monitors, save_screenshots_locally
 from activity import ActivityTracker
 from server_comm import ServerCommunicator
-from notifier import show_toast
 from updater import check_for_update, apply_update, restart_agent
 from version import AGENT_VERSION
 
@@ -249,6 +248,14 @@ class EmpMonitorAgent:
         time.sleep(15)
 
         while self.running:
+            try:
+                # Lazy import — notifier.py may not exist until updated
+                from notifier import show_toast
+            except ImportError:
+                self.logger.debug("notifier module not available yet, skipping")
+                self._interruptible_sleep(self.notification_poll_interval)
+                continue
+
             try:
                 notifications = self.communicator.fetch_notifications()
                 for notif in notifications:

@@ -17,12 +17,11 @@ from version import AGENT_VERSION
 
 logger = logging.getLogger('emp_agent.updater')
 
-# Files that get replaced during an update
-UPDATABLE_FILES = [
-    '__init__.py', 'main.py', 'activity.py', 'browser_url.py',
-    'screenshot.py', 'server_comm.py', 'service.py', 'version.py',
-    'updater.py', 'notifier.py', 'requirements-agent.txt',
-]
+# File extensions that are safe to replace during an update
+UPDATABLE_EXTENSIONS = {'.py', '.txt'}
+
+# Files that should never be overwritten (user config, local state)
+PROTECTED_FILES = {'config.json'}
 
 REQUEST_TIMEOUT = 60
 
@@ -78,14 +77,29 @@ def apply_update(server_url, session, download_url):
 
         # Copy updatable files over the current agent
         updated = []
-        for filename in UPDATABLE_FILES:
-            src = os.path.join(extract_dir, filename)
+        for entry in zf.namelist():
+            # Only copy top-level files with allowed extensions
+            if '/' in entry or '\\' in entry:
+                continue
+            if entry in PROTECTED_FILES:
+                continue
+            ext = os.path.splitext(entry)[1].lower()
+            if ext not in UPDATABLE_EXTENSIONS:
+                continue
+            src = os.path.join(extract_dir, entry)
             if os.path.exists(src):
-                dst = os.path.join(agent_dir, filename)
+                dst = os.path.join(agent_dir, entry)
                 shutil.copy2(src, dst)
-                updated.append(filename)
+                updated.append(entry)
 
         logger.info(f"Updated {len(updated)} files: {', '.join(updated)}")
+
+        # Clear __pycache__ so Python doesn't use stale bytecode
+        pycache_dir = os.path.join(agent_dir, '__pycache__')
+        if os.path.isdir(pycache_dir):
+            shutil.rmtree(pycache_dir, ignore_errors=True)
+            logger.info("Cleared __pycache__")
+
         return True
 
     except Exception as e:
