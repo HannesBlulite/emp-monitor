@@ -21,7 +21,7 @@ logger = logging.getLogger('emp_agent.updater')
 UPDATABLE_FILES = [
     '__init__.py', 'main.py', 'activity.py', 'browser_url.py',
     'screenshot.py', 'server_comm.py', 'service.py', 'version.py',
-    'updater.py', 'requirements-agent.txt',
+    'updater.py', 'notifier.py', 'requirements-agent.txt',
 ]
 
 REQUEST_TIMEOUT = 60

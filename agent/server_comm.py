@@ -234,3 +234,61 @@ class ServerCommunicator:
             logger.debug(f"Queued activity report: {filename}")
         except Exception as e:
             logger.error(f"Failed to queue activity report: {e}")
+
+    # -------------------------------------------------------------------
+    # Notification endpoints
+    # -------------------------------------------------------------------
+
+    def fetch_notifications(self):
+        """
+        Fetch pending (undelivered) notifications from the server.
+
+        Returns:
+            list of dict, each with 'id', 'type', 'title', 'message', 'created_at'
+            or empty list on failure.
+        """
+        url = f'{self.server_url}/api/notifications/pending/'
+
+        try:
+            response = self.session.get(url, timeout=REQUEST_TIMEOUT)
+            if response.status_code == 200:
+                data = response.json()
+                notifications = data.get('notifications', [])
+                if notifications:
+                    logger.info(f"Fetched {len(notifications)} pending notification(s)")
+                return notifications
+            else:
+                logger.debug(f"Notifications fetch returned HTTP {response.status_code}")
+                return []
+        except requests.ConnectionError:
+            logger.debug("Server unreachable — skipping notification check")
+            return []
+        except Exception as e:
+            logger.debug(f"Notification fetch error: {e}")
+            return []
+
+    def ack_notification(self, notification_id):
+        """
+        Acknowledge a notification (mark as delivered on the server).
+
+        Args:
+            notification_id: The server-side notification PK
+
+        Returns:
+            bool: True if acknowledged successfully
+        """
+        url = f'{self.server_url}/api/notifications/{notification_id}/ack/'
+
+        try:
+            response = self.session.post(url, timeout=REQUEST_TIMEOUT)
+            if response.status_code == 200:
+                logger.info(f"Notification {notification_id} acknowledged")
+                return True
+            else:
+                logger.warning(
+                    f"Notification ack failed (HTTP {response.status_code})"
+                )
+                return False
+        except Exception as e:
+            logger.debug(f"Notification ack error: {e}")
+            return False

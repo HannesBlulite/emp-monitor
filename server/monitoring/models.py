@@ -209,6 +209,38 @@ class AgentSettings(models.Model):
         return obj
 
 
+class Notification(models.Model):
+    """
+    Notification sent from the server (manager) to an employee's agent.
+    The agent polls for pending notifications and displays them as
+    Windows toast notifications on the employee's PC.
+    """
+    NOTIFICATION_TYPES = [
+        ('overtime', 'Overtime Info'),
+        ('schedule', 'Schedule Info'),
+        ('custom', 'Custom Message'),
+    ]
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='notifications')
+    notification_type = models.CharField(max_length=20, choices=NOTIFICATION_TYPES, default='custom')
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    delivered_at = models.DateTimeField(null=True, blank=True, help_text="When the agent displayed the toast")
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['employee', '-created_at']),
+            models.Index(fields=['employee', 'delivered_at']),
+        ]
+
+    def __str__(self):
+        status = 'delivered' if self.delivered_at else 'pending'
+        return f"[{status}] {self.title} → {self.employee.display_name}"
+
+
 class AgentPackage(models.Model):
     """
     Uploaded agent update package. The latest active package is served

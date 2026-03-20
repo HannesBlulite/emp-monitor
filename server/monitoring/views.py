@@ -493,14 +493,20 @@ def timesheets(request):
                 ot_usage, app_rules, domain_rules
             )
 
+            # Overtime desk time (active + idle from activity logs)
+            ot_agg = ot_logs.aggregate(
+                a=Sum('active_seconds'), i=Sum('idle_seconds')
+            )
+            ot_active = (ot_agg['a'] or 0) + (ot_agg['i'] or 0)
+
             # Productivity percentages (productive / desk time)
             sched_prod_pct = (
                 round(sched_productive / sched_active * 100, 1)
                 if sched_active > 0 else 0
             )
             ot_prod_pct = (
-                round(ot_productive / total_ot_secs * 100, 1)
-                if total_ot_secs > 0 else 0
+                round(ot_productive / ot_active * 100, 1)
+                if ot_active > 0 else 0
             )
 
             # Attendance status based on SAST clock-in time

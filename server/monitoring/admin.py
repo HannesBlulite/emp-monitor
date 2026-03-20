@@ -6,6 +6,7 @@ from django.contrib import admin
 from .models import (
     Employee, AgentToken, Screenshot, ActivityLog,
     AppUsageEntry, ProductivityRule, AgentSettings, AgentPackage,
+    Notification,
 )
 
 
@@ -48,6 +49,13 @@ class ProductivityRuleAdmin(admin.ModelAdmin):
     list_display = ['match_type', 'pattern', 'category', 'description']
     list_filter = ['match_type', 'category']
     search_fields = ['pattern', 'description']
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'notification_type', 'title', 'created_at', 'delivered_at']
+    list_filter = ['notification_type', 'delivered_at']
+    search_fields = ['title', 'message', 'employee__display_name']
 
 
 @admin.register(AgentSettings)

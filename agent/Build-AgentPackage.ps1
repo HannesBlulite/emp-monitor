@@ -24,6 +24,7 @@ $files = @(
     'service.py',
     'version.py',
     'updater.py',
+    'notifier.py',
     'config.json',
     'requirements-agent.txt',
     'Install-EmpAgent.ps1',

@@ -22,6 +22,7 @@ from rest_framework.response import Response
 from .models import (
     Employee, AgentToken, Screenshot, ActivityLog,
     AppUsageEntry, AgentSettings, AgentPackage, ProductivityRule,
+    Notification,
 )
 
 logger = logging.getLogger('monitoring.api')
@@ -330,4 +331,138 @@ def agent_update_download(request, pk):
         content_type='application/zip',
         as_attachment=True,
         filename=f'empmonitor-agent-{pkg.version}.zip',
+    )
+
+
+# ---------------------------------------------------------------------------
+# Notification endpoints
+# ---------------------------------------------------------------------------
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def notifications_pending(request):
+    """
+    Return undelivered notifications for this agent's employee.
+    The agent polls this endpoint every 60 seconds.
+    """
+    employee = authenticate_agent(request)
+    if not employee:
+        return Response(
+            {'error': 'Invalid or missing agent token'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    pending = Notification.objects.filter(
+        employee=employee,
+        delivered_at__isnull=True,
+    ).order_by('created_at')[:10]
+
+    items = [
+        {
+            'id': n.id,
+            'type': n.notification_type,
+            'title': n.title,
+            'message': n.message,
+            'created_at': n.created_at.isoformat(),
+        }
+        for n in pending
+    ]
+
+    return Response({'notifications': items})
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def notification_ack(request, pk):
+    """
+    Mark a notification as delivered (the agent displayed the toast).
+    """
+    employee = authenticate_agent(request)
+    if not employee:
+        return Response(
+            {'error': 'Invalid or missing agent token'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    try:
+        notification = Notification.objects.get(pk=pk, employee=employee)
+    except Notification.DoesNotExist:
+        return Response(
+            {'error': 'Notification not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not notification.delivered_at:
+        notification.delivered_at = timezone.now()
+        notification.save(update_fields=['delivered_at'])
+
+    return Response({'status': 'ok'})
+
+
+@api_view(['POST'])
+def send_notification(request):
+    """
+    Manager endpoint: send a notification to one or more employees.
+    Requires Django session auth (login_required via DRF default auth).
+
+    Expected JSON:
+    {
+        "employee_ids": ["EMP001", "EMP002"],   // or ["all"]
+        "title": "Overtime Info",
+        "message": "You have 01:13 overtime today.",
+        "notification_type": "overtime"          // optional, defaults to "custom"
+    }
+    """
+    if not request.user.is_authenticated:
+        return Response(
+            {'error': 'Authentication required'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    data = request.data
+    employee_ids = data.get('employee_ids', [])
+    title = data.get('title', '').strip()
+    message = data.get('message', '').strip()
+    notification_type = data.get('notification_type', 'custom')
+
+    if not title or not message:
+        return Response(
+            {'error': 'Title and message are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if notification_type not in ('overtime', 'schedule', 'custom'):
+        notification_type = 'custom'
+
+    if 'all' in employee_ids:
+        employees = Employee.objects.filter(is_active=True)
+    else:
+        employees = Employee.objects.filter(employee_id__in=employee_ids, is_active=True)
+
+    if not employees.exists():
+        return Response(
+            {'error': 'No matching employees found'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    created = []
+    for emp in employees:
+        n = Notification.objects.create(
+            employee=emp,
+            notification_type=notification_type,
+            title=title,
+            message=message,
+        )
+        created.append(n.id)
+
+    logger.info(
+        f"Notifications sent by {request.user.username}: "
+        f"{len(created)} notification(s) — \"{title}\""
+    )
+
+    return Response(
+        {'status': 'ok', 'count': len(created), 'notification_ids': created},
+        status=status.HTTP_201_CREATED
     )

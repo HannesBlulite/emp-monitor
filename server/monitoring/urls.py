@@ -25,4 +25,9 @@ urlpatterns = [
     path('api/agent/settings/', api_views.agent_settings, name='api_agent_settings'),
     path('api/agent/update/check/', api_views.agent_update_check, name='api_agent_update_check'),
     path('api/agent/update/download/<int:pk>/', api_views.agent_update_download, name='api_agent_update_download'),
+
+    # Notification endpoints
+    path('api/notifications/pending/', api_views.notifications_pending, name='api_notifications_pending'),
+    path('api/notifications/<int:pk>/ack/', api_views.notification_ack, name='api_notification_ack'),
+    path('api/notifications/send/', api_views.send_notification, name='api_send_notification'),
 ]

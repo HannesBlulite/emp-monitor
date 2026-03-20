@@ -8,6 +8,9 @@
 {% block content %}
 <div class="page-header">
     <h1>Timesheets</h1>
+    <button class="btn btn-primary" id="btn-send-notification" title="Send notification to employees">
+        &#128276; Send Notification
+    </button>
 </div>
 
 <!-- Date Range Picker -->
@@ -122,6 +125,52 @@
 </div>
 {% endif %}
 
+<!-- Send Notification Modal -->
+<div class="modal-overlay" id="notification-modal" style="display:none;">
+    <div class="modal-dialog" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3>Send Notification to Employee</h3>
+            <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="notif-employee">Employee</label>
+                <select id="notif-employee" class="form-control">
+                    <option value="all">All Employees</option>
+                    {% for row in rows %}
+                    <option value="{{ row.employee.employee_id }}"
+                            data-early="{{ row.early_ot }}"
+                            data-late="{{ row.late_ot }}"
+                            data-total="{{ row.total_ot }}"
+                            data-sched-active="{{ row.sched_active }}"
+                            data-sched-prod="{{ row.sched_prod_pct }}">
+                        {{ row.employee.display_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="notif-type">Type</label>
+                <select id="notif-type" class="form-control">
+                    <option value="overtime">Overtime Info</option>
+                    <option value="schedule">Schedule Info</option>
+                    <option value="custom">Custom Message</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="notif-title">Title</label>
+                <input type="text" id="notif-title" class="form-control" value="Overtime Information">
+            </div>
+            <div class="form-group">
+                <label for="notif-message">Message</label>
+                <textarea id="notif-message" class="form-control" rows="4" placeholder="Your message to the employee..."></textarea>
+            </div>
+            <button class="btn btn-primary" id="notif-send" style="width:100%;margin-top:10px;">Send Notification</button>
+            <div id="notif-result" style="margin-top:10px;display:none;"></div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
@@ -178,6 +227,122 @@
             return 0;
         });
         rows.forEach(function(row) { tbody.appendChild(row); });
+    }
+
+    // --- Notification modal ---
+    const modal = document.getElementById('notification-modal');
+    const btnOpen = document.getElementById('btn-send-notification');
+    const btnClose = document.getElementById('modal-close');
+    const empSelect = document.getElementById('notif-employee');
+    const typeSelect = document.getElementById('notif-type');
+    const titleInput = document.getElementById('notif-title');
+    const messageInput = document.getElementById('notif-message');
+    const btnSend = document.getElementById('notif-send');
+    const resultDiv = document.getElementById('notif-result');
+
+    if (btnOpen) {
+        btnOpen.addEventListener('click', function() {
+            modal.style.display = 'flex';
+            resultDiv.style.display = 'none';
+        });
+    }
+    if (btnClose) {
+        btnClose.addEventListener('click', function() {
+            modal.style.display = 'none';
+        });
+    }
+    // Close on overlay click
+    if (modal) {
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    }
+
+    // Auto-fill message when employee is selected and type is overtime
+    if (empSelect) {
+        empSelect.addEventListener('change', autoFillMessage);
+    }
+    if (typeSelect) {
+        typeSelect.addEventListener('change', function() {
+            if (this.value === 'overtime') {
+                titleInput.value = 'Overtime Information';
+            } else if (this.value === 'schedule') {
+                titleInput.value = 'Schedule Information';
+            } else {
+                titleInput.value = '';
+            }
+            autoFillMessage();
+        });
+    }
+
+    function autoFillMessage() {
+        if (typeSelect.value !== 'overtime') return;
+        const opt = empSelect.selectedOptions[0];
+        if (!opt || opt.value === 'all') {
+            messageInput.value = '';
+            return;
+        }
+        const name = opt.textContent.trim();
+        const early = opt.getAttribute('data-early') || '00:00:00';
+        const late = opt.getAttribute('data-late') || '00:00:00';
+        const total = opt.getAttribute('data-total') || '00:00:00';
+        messageInput.value =
+            'Hi ' + name + ',\n\n' +
+            'Your overtime for today:\n' +
+            '  Early: ' + early + '\n' +
+            '  Late: ' + late + '\n' +
+            '  Total: ' + total + '\n\n' +
+            'Thank you.';
+    }
+
+    // Send notification
+    if (btnSend) {
+        btnSend.addEventListener('click', function() {
+            const empVal = empSelect.value;
+            const empIds = empVal === 'all' ? ['all'] : [empVal];
+            const payload = {
+                employee_ids: empIds,
+                title: titleInput.value,
+                message: messageInput.value,
+                notification_type: typeSelect.value,
+            };
+
+            btnSend.disabled = true;
+            btnSend.textContent = 'Sending...';
+
+            fetch('{% url "monitoring:api_send_notification" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify(payload),
+            })
+            .then(function(resp) { return resp.json(); })
+            .then(function(data) {
+                resultDiv.style.display = 'block';
+                if (data.status === 'ok') {
+                    resultDiv.innerHTML = '<span style="color:var(--productive);">Sent ' + data.count + ' notification(s) successfully.</span>';
+                } else {
+                    resultDiv.innerHTML = '<span style="color:var(--unproductive);">Error: ' + (data.error || 'Unknown error') + '</span>';
+                }
+            })
+            .catch(function(err) {
+                resultDiv.style.display = 'block';
+                resultDiv.innerHTML = '<span style="color:var(--unproductive);">Network error: ' + err.message + '</span>';
+            })
+            .finally(function() {
+                btnSend.disabled = false;
+                btnSend.textContent = 'Send Notification';
+            });
+        });
+    }
+
+    function getCookie(name) {
+        const value = '; ' + document.cookie;
+        const parts = value.split('; ' + name + '=');
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return '';
     }
 })();
 </script>

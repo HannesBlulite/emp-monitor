@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from screenshot import capture_all_monitors, save_screenshots_locally
 from activity import ActivityTracker
 from server_comm import ServerCommunicator
+from notifier import show_toast
 from updater import check_for_update, apply_update, restart_agent
 from version import AGENT_VERSION
 
@@ -111,6 +112,7 @@ class EmpMonitorAgent:
         self.screenshot_interval = config['screenshot_interval_seconds']
         self.activity_report_interval = config['activity_report_interval_seconds']
         self.activity_poll_interval = 5  # Poll activity every 5 seconds
+        self.notification_poll_interval = 60  # Check for notifications every 60 seconds
 
     def start(self):
         """Start the agent."""
@@ -134,6 +136,7 @@ class EmpMonitorAgent:
             threading.Thread(target=self._queue_flush_loop, daemon=True, name='QueueFlushLoop'),
             threading.Thread(target=self._settings_refresh_loop, daemon=True, name='SettingsLoop'),
             threading.Thread(target=self._update_check_loop, daemon=True, name='UpdateLoop'),
+            threading.Thread(target=self._notification_loop, daemon=True, name='NotificationLoop'),
         ]
 
         for t in threads:
@@ -239,6 +242,31 @@ class EmpMonitorAgent:
         while self.running:
             self._interruptible_sleep(300)  # Every 5 minutes
             self._refresh_settings()
+
+    def _notification_loop(self):
+        """Periodically check for and display pending notifications."""
+        # Wait a bit after startup
+        time.sleep(15)
+
+        while self.running:
+            try:
+                notifications = self.communicator.fetch_notifications()
+                for notif in notifications:
+                    try:
+                        show_toast(
+                            title=notif.get('title', 'EMP Monitor'),
+                            message=notif.get('message', ''),
+                        )
+                        # Acknowledge delivery
+                        self.communicator.ack_notification(notif['id'])
+                    except Exception as e:
+                        self.logger.error(
+                            f"Failed to show notification {notif.get('id')}: {e}"
+                        )
+            except Exception as e:
+                self.logger.error(f"Notification loop error: {e}")
+
+            self._interruptible_sleep(self.notification_poll_interval)
 
     def _update_check_loop(self):
         """Periodically check for agent updates."""
