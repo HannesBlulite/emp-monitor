@@ -4,7 +4,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('monitoring', '0003_add_domain_to_appusageentry'),
+        ('monitoring', '0004_add_notifications'),
     ]
 
     operations = [
