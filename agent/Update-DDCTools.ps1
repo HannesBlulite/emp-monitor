@@ -44,8 +44,8 @@ $UncBase       = '\\10.147.17.115\EDrive'
 # Possible locations for the update package (tried in order)
 $SearchPaths = @(
     $PSScriptRoot,                                    # Same folder as this script
-    'E:\DDC\tools\updates',                           # Mapped drive
-    "$UncBase\DDC\tools\updates"                      # UNC path
+    "$UncBase\DDC\tools\updates",                     # UNC path (works in admin sessions)
+    'E:\DDC\tools\updates'                            # Mapped drive (fallback)
 )
 
 # Files that must NEVER be overwritten (employee-specific config)
@@ -58,18 +58,14 @@ function Write-Ok($msg)      { Write-Host "    [OK] $msg" -ForegroundColor Green
 function Write-Fail($msg)    { Write-Host "    [FAIL] $msg" -ForegroundColor Red }
 function Write-Info($msg)    { Write-Host "    $msg" -ForegroundColor Gray }
 
-# ── Resolve install directory (E: drive may not be mapped in admin session) ──
+# ── Resolve install directory ────────────────────────────────────────────
+# Admin-elevated sessions often lose mapped drives (E:), so prefer UNC directly.
+# The E: drive path is only used for the scheduled task (runs as normal user).
 $InstallDir = $null
-if (Test-Path 'E:\DDC\tools\agent') {
+if (Test-Path "$UncBase\DDC\tools\agent") {
+    $InstallDir = "$UncBase\DDC\tools\agent"
+} elseif (Test-Path 'E:\DDC\tools\agent') {
     $InstallDir = 'E:\DDC\tools\agent'
-} else {
-    # Try to reconnect E: drive
-    net use E: $UncBase /persistent:yes 2>&1 | Out-Null
-    if (Test-Path 'E:\DDC\tools\agent') {
-        $InstallDir = 'E:\DDC\tools\agent'
-    } elseif (Test-Path "$UncBase\DDC\tools\agent") {
-        $InstallDir = "$UncBase\DDC\tools\agent"
-    }
 }
 
 function Pause-BeforeExit {

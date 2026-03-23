@@ -22,6 +22,21 @@ from .models import (
 )
 
 
+def is_manager(user):
+    """Return True if user is a manager (superuser/staff or has no linked employee)."""
+    if user.is_superuser or user.is_staff:
+        return True
+    return not Employee.objects.filter(user=user).exists()
+
+
+def get_employee_for_user(user):
+    """Return the Employee linked to this user, or None."""
+    try:
+        return Employee.objects.get(user=user)
+    except Employee.DoesNotExist:
+        return None
+
+
 def _match_domain_rule(domain, domain_rules):
     """
     Match a domain against productivity rules.
@@ -43,8 +58,12 @@ def _match_domain_rule(domain, domain_rules):
 def dashboard(request):
     """Main dashboard — overview of all employees."""
     today = timezone.now().date()
+    user_is_manager = is_manager(request.user)
 
-    employees = Employee.objects.filter(is_active=True).order_by('display_name')
+    if user_is_manager:
+        employees = Employee.objects.filter(is_active=True).order_by('display_name')
+    else:
+        employees = Employee.objects.filter(user=request.user, is_active=True)
 
     employee_data = []
     for emp in employees:
@@ -97,6 +116,7 @@ def dashboard(request):
         'offline_count': total_employees - online_count,
         'settings': settings,
         'today': today,
+        'is_manager': user_is_manager,
     }
 
     return render(request, 'monitoring/dashboard.html', context)
@@ -106,6 +126,13 @@ def dashboard(request):
 def employee_detail(request, employee_id):
     """Detailed view for a specific employee."""
     employee = get_object_or_404(Employee, employee_id=employee_id)
+
+    # Staff can only view their own detail
+    if not is_manager(request.user):
+        linked = get_employee_for_user(request.user)
+        if not linked or linked.pk != employee.pk:
+            from django.http import HttpResponseForbidden
+            return HttpResponseForbidden('You can only view your own data.')
 
     # Date filter (default: today)
     date_str = request.GET.get('date')
@@ -317,6 +344,7 @@ def employee_detail(request, employee_id):
 def timesheets(request):
     """Timesheets view — all employees with clock-in/out, hours, productivity."""
     today = timezone.now().date()
+    user_is_manager = is_manager(request.user)
 
     SCHEDULE_START = time_type(7, 0)
     SCHEDULE_END = time_type(15, 30)
@@ -421,7 +449,10 @@ def timesheets(request):
                 neutral += dur
         return productive, unproductive, neutral
 
-    employees = Employee.objects.filter(is_active=True).order_by('display_name')
+    if user_is_manager:
+        employees = Employee.objects.filter(is_active=True).order_by('display_name')
+    else:
+        employees = Employee.objects.filter(user=request.user, is_active=True)
     rows = []
 
     # Build one row per employee per date
@@ -544,6 +575,7 @@ def timesheets(request):
         'date_from': date_from,
         'date_to': date_to,
         'preset': preset,
+        'is_manager': user_is_manager,
     }
     return render(request, 'monitoring/timesheets.html', context)
 
@@ -559,7 +591,9 @@ def _fmt_duration(seconds):
 
 @login_required
 def ajax_update_rule_category(request):
-    """AJAX endpoint: update a single rule's category inline."""
+    """AJAX endpoint: update a single rule's category inline (managers only)."""
+    if not is_manager(request.user):
+        return JsonResponse({'error': 'Access denied'}, status=403)
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
     try:
@@ -578,7 +612,9 @@ def ajax_update_rule_category(request):
 
 @login_required
 def ajax_bulk_rule_action(request):
-    """AJAX endpoint: bulk update or delete rules."""
+    """AJAX endpoint: bulk update or delete rules (managers only)."""
+    if not is_manager(request.user):
+        return JsonResponse({'error': 'Access denied'}, status=403)
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
     try:
@@ -606,7 +642,10 @@ def ajax_bulk_rule_action(request):
 
 @login_required
 def settings_view(request):
-    """Admin settings page."""
+    """Admin settings page — managers only."""
+    if not is_manager(request.user):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden('Access denied.')
     settings = AgentSettings.get_settings()
     employees = Employee.objects.all().order_by('display_name')
 
@@ -774,7 +813,10 @@ def _import_rules_from_csv(csv_file):
 
 @login_required
 def export_rules_csv(request):
-    """Export all productivity rules as a CSV download."""
+    """Export all productivity rules as a CSV download (managers only)."""
+    if not is_manager(request.user):
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden('Access denied.')
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="productivity_rules.csv"'
 
