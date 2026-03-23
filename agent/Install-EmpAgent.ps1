@@ -29,7 +29,7 @@ $ErrorActionPreference = 'Stop'
 
 # ── Constants ────────────────────────────────────────────────────────────
 $InstallDir    = 'E:\DDC\tools\agent'
-$VenvDir       = "$InstallDir\venv"
+$VenvDir       = "$env:LOCALAPPDATA\DDC\agent-venv"
 $ServerUrl     = 'https://ddcemp.co.za'
 $TaskName      = 'EmpMonitorAgent'
 $PythonMinVer  = [version]'3.10'
@@ -146,6 +146,11 @@ Write-Ok "Agent files copied to $InstallDir"
 
 # ── Step 3: Virtual environment & dependencies ──────────────────────────
 Write-Step 'Setting up Python virtual environment'
+
+# Ensure local directory exists
+if (-not (Test-Path (Split-Path $VenvDir))) {
+    New-Item -ItemType Directory -Path (Split-Path $VenvDir) -Force | Out-Null
+}
 
 if (-not (Test-Path "$VenvDir\Scripts\python.exe")) {
     & $PythonExe -m venv $VenvDir

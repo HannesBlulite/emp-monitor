@@ -258,9 +258,21 @@ try {
 # ── Step 6: Ensure venv exists and update Python dependencies ────────────
 Write-Step 'Checking Python environment'
 
-$VenvDir  = "$InstallDir\venv"
+# Venv lives LOCALLY on each PC (not on the network share) to avoid lock issues
+$LocalAgentDir = "$env:LOCALAPPDATA\DDC\agent-venv"
+if (-not (Test-Path $LocalAgentDir)) {
+    New-Item -ItemType Directory -Path $LocalAgentDir -Force | Out-Null
+}
+$VenvDir  = $LocalAgentDir
 $VenvPip  = "$VenvDir\Scripts\pip.exe"
 $ReqFile  = "$InstallDir\requirements-agent.txt"
+
+# Clean up old network-share venv if it exists (may fail if locked — that's OK)
+$OldNetVenv = "$InstallDir\venv"
+if (Test-Path $OldNetVenv) {
+    Write-Info 'Removing old network-share venv (now using local venv)...'
+    Remove-Item $OldNetVenv -Recurse -Force -ErrorAction SilentlyContinue
+}
 $PythonMinVer = [version]'3.10'
 
 # Check if venv is complete (both python.exe AND pip.exe must exist)
@@ -309,12 +321,12 @@ if (-not $venvValid) {
         & $PythonExe -m venv $localVenv 2>&1 | Out-Null
 
         if (Test-Path "$localVenv\Scripts\python.exe") {
-            # Copy the whole venv to the network drive
-            Write-Info 'Copying venv to install directory...'
+            # Move local temp venv to permanent local dir
+            Write-Info 'Moving venv to local directory...'
             if (Test-Path $VenvDir) { Remove-Item $VenvDir -Recurse -Force }
             Copy-Item $localVenv $VenvDir -Recurse -Force
             Remove-Item $localVenv -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Ok 'Virtual environment created'
+            Write-Ok 'Virtual environment created (local)'
         } else {
             Write-Fail 'venv creation failed locally.'
             Remove-Item $localVenv -Recurse -Force -ErrorAction SilentlyContinue
@@ -348,12 +360,10 @@ Write-Step 'Registering scheduled task (with watchdog)'
 
 # Task runs as normal user who has E: mapped — always use drive letter path
 $TaskDir  = 'E:\DDC\tools\agent'
-$VenvDir  = "$TaskDir\venv"
+# Venv is local (not on network share)
+$LocalVenvDir = "$env:LOCALAPPDATA\DDC\agent-venv"
 
-# But check pythonw against the path we CAN see (may be UNC or E:)
-$checkVenv = "$InstallDir\venv"
-
-if (-not (Test-Path "$checkVenv\Scripts\pythonw.exe")) {
+if (-not (Test-Path "$LocalVenvDir\Scripts\pythonw.exe")) {
     Write-Fail "Cannot find pythonw.exe in venv - venv may be broken."
     Write-Host '    Agent will not auto-start. A full reinstall may be needed.' -ForegroundColor Yellow
 } else {
@@ -361,7 +371,7 @@ if (-not (Test-Path "$checkVenv\Scripts\pythonw.exe")) {
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 
     $action = New-ScheduledTaskAction `
-        -Execute "$VenvDir\Scripts\pythonw.exe" `
+        -Execute "$LocalVenvDir\Scripts\pythonw.exe" `
         -Argument "`"$TaskDir\main.py`"" `
         -WorkingDirectory $TaskDir
 
