@@ -84,6 +84,8 @@ Write-Host '============================================================' -Foreg
 Write-Host '  DDC Tools - Agent Updater' -ForegroundColor Yellow
 Write-Host '============================================================' -ForegroundColor Yellow
 
+try {
+
 # ── Step 1: Find the update package ─────────────────────────────────────
 Write-Step 'Looking for update package'
 
@@ -265,13 +267,21 @@ $VenvPip  = "$VenvDir\Scripts\pip.exe"
 $ReqFile  = "$InstallDir\requirements-agent.txt"
 $PythonMinVer = [version]'3.10'
 
-if (-not (Test-Path "$VenvDir\Scripts\python.exe")) {
-    Write-Info 'Virtual environment not found - creating one...'
+# Check if venv is complete (both python.exe AND pip.exe must exist)
+$venvValid = (Test-Path "$VenvDir\Scripts\python.exe") -and (Test-Path "$VenvDir\Scripts\pip.exe")
+
+if (-not $venvValid) {
+    if (Test-Path $VenvDir) {
+        Write-Info 'Existing venv is incomplete/broken - removing it...'
+        Remove-Item $VenvDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Write-Info 'Creating virtual environment...'
 
     # Find a system Python
     $candidates = @(
         (Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
         (Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+        "$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
         "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe",
@@ -422,6 +432,12 @@ Write-Host ''
 Write-Host '============================================================' -ForegroundColor Green
 Write-Host '  Update complete!' -ForegroundColor Green
 Write-Host '============================================================' -ForegroundColor Green
-Write-Host ''
 
+} catch {
+    Write-Host ''
+    Write-Host "UNEXPECTED ERROR: $_" -ForegroundColor Red
+    Write-Host $_.ScriptStackTrace -ForegroundColor DarkGray
+}
+
+Write-Host ''
 Pause-BeforeExit
