@@ -222,19 +222,60 @@ try {
     Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
-# ── Step 6: Update Python dependencies if needed ────────────────────────
-Write-Step 'Checking Python dependencies'
+# ── Step 6: Ensure venv exists and update Python dependencies ────────────
+Write-Step 'Checking Python environment'
 
-$VenvPip = "$InstallDir\venv\Scripts\pip.exe"
-$ReqFile = "$InstallDir\requirements-agent.txt"
+$VenvDir  = "$InstallDir\venv"
+$VenvPip  = "$VenvDir\Scripts\pip.exe"
+$ReqFile  = "$InstallDir\requirements-agent.txt"
+$PythonMinVer = [version]'3.10'
+
+if (-not (Test-Path "$VenvDir\Scripts\python.exe")) {
+    Write-Info 'Virtual environment not found - creating one...'
+
+    # Find a system Python
+    $candidates = @(
+        (Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+        (Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
+        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe",
+        "$env:LOCALAPPDATA\Programs\Python\Python310\python.exe",
+        "C:\Python312\python.exe",
+        "C:\Python311\python.exe"
+    ) | Where-Object { $_ -and (Test-Path $_) }
+
+    $PythonExe = $null
+    foreach ($py in $candidates) {
+        try {
+            $ver = & $py --version 2>&1
+            if ($ver -match 'Python (\d+\.\d+\.\d+)') {
+                if ([version]$Matches[1] -ge $PythonMinVer) {
+                    $PythonExe = $py
+                    break
+                }
+            }
+        } catch {}
+    }
+
+    if ($PythonExe) {
+        Write-Info "Found Python: $PythonExe"
+        & $PythonExe -m venv $VenvDir
+        Write-Ok 'Virtual environment created'
+    } else {
+        Write-Fail 'Python >= 3.10 not found. Cannot create venv.'
+        Write-Host '    Install Python 3.12 first, then run this script again.' -ForegroundColor Yellow
+    }
+}
 
 if ((Test-Path $VenvPip) -and (Test-Path $ReqFile)) {
+    Write-Info 'Installing/updating dependencies...'
     $ErrorActionPreference = 'Continue'
+    & $VenvPip install --upgrade pip --quiet 2>&1 | Out-Null
     & $VenvPip install -r $ReqFile --quiet 2>&1 | Out-Null
     $ErrorActionPreference = 'Stop'
     Write-Ok 'Dependencies up to date'
-} else {
-    Write-Info 'Skipped (venv not found - may need full reinstall)'
+} elseif (-not (Test-Path $VenvPip)) {
+    Write-Fail 'pip not found - venv creation may have failed.'
 }
 
 # Clear __pycache__
