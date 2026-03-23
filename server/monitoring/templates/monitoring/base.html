@@ -30,7 +30,10 @@
             {% if user.is_authenticated %}
                 <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode">&#9790;</button>
                 <span class="user-name">{{ user.username }}</span>
-                <a href="{% url 'logout' %}" class="btn btn-sm btn-outline">Logout</a>
+                <form method="post" action="{% url 'logout' %}" style="display:inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline">Logout</button>
+                </form>
             {% endif %}
         </div>
     </nav>
