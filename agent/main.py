@@ -50,7 +50,7 @@ def load_config():
 
     if os.path.exists(CONFIG_PATH):
         try:
-            with open(CONFIG_PATH, 'r') as f:
+            with open(CONFIG_PATH, 'r', encoding='utf-8-sig') as f:
                 loaded = json.load(f)
             defaults.update(loaded)
         except Exception as e:
@@ -120,6 +120,7 @@ class EmpMonitorAgent:
         self.logger.info("EMP Monitor Agent starting")
         self.logger.info(f"  Version: {AGENT_VERSION}")
         self.logger.info(f"  Server: {self.config['server_url']}")
+        self.logger.info(f"  Token: {self.config['agent_token'][:8]}...{self.config['agent_token'][-4:]}")
         self.logger.info(f"  Screenshot interval: {self.screenshot_interval}s")
         self.logger.info(f"  Activity report interval: {self.activity_report_interval}s")
         self.logger.info("=" * 60)
