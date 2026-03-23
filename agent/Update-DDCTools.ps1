@@ -28,14 +28,14 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 
 # ── Configuration ────────────────────────────────────────────────────────
 $PackageName   = 'empmonitor-agent.zip'
-$InstallDir    = 'E:\DDC\tools\agent'
 $TaskName      = 'EmpMonitorAgent'
+$UncBase       = '\\10.147.17.115\EDrive'
 
 # Possible locations for the update package (tried in order)
 $SearchPaths = @(
     $PSScriptRoot,                                    # Same folder as this script
     'E:\DDC\tools\updates',                           # Mapped drive
-    '\\10.147.17.115\EDrive\DDC\tools\updates'        # UNC path
+    "$UncBase\DDC\tools\updates"                      # UNC path
 )
 
 # Files that must NEVER be overwritten (employee-specific config)
@@ -47,6 +47,20 @@ function Write-Step($msg)    { Write-Host "`n>>> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)      { Write-Host "    [OK] $msg" -ForegroundColor Green }
 function Write-Fail($msg)    { Write-Host "    [FAIL] $msg" -ForegroundColor Red }
 function Write-Info($msg)    { Write-Host "    $msg" -ForegroundColor Gray }
+
+# ── Resolve install directory (E: drive may not be mapped in admin session) ──
+$InstallDir = $null
+if (Test-Path 'E:\DDC\tools\agent') {
+    $InstallDir = 'E:\DDC\tools\agent'
+} else {
+    # Try to reconnect E: drive
+    net use E: $UncBase /persistent:yes 2>&1 | Out-Null
+    if (Test-Path 'E:\DDC\tools\agent') {
+        $InstallDir = 'E:\DDC\tools\agent'
+    } elseif (Test-Path "$UncBase\DDC\tools\agent") {
+        $InstallDir = "$UncBase\DDC\tools\agent"
+    }
+}
 
 function Pause-BeforeExit {
     Write-Host ''
@@ -97,6 +111,15 @@ Write-Ok "Found update package (modified: $packageDate)"
 # ── Step 2: Verify current installation exists ──────────────────────────
 Write-Step 'Checking current installation'
 
+if (-not $InstallDir) {
+    Write-Fail "Cannot reach agent folder (E: drive and UNC both failed)."
+    Write-Host '    Make sure you are connected to the office network.' -ForegroundColor Yellow
+    Pause-BeforeExit
+    exit 1
+}
+
+Write-Info "Install directory: $InstallDir"
+
 if (-not (Test-Path $InstallDir)) {
     Write-Fail "Agent not installed at $InstallDir"
     Write-Host '    Run the full installer first (Install-EmpAgent.ps1).' -ForegroundColor Yellow
@@ -142,20 +165,22 @@ foreach ($proc in $agentProcesses) {
 # ── Step 4: Back up current agent ───────────────────────────────────────
 Write-Step 'Backing up current agent'
 
-$backupDir = "$InstallDir\_backup"
+# Use a LOCAL temp folder for backup (avoids slow network I/O on mapped drives)
+$backupDir = Join-Path $env:TEMP 'ddc-agent-backup'
 if (Test-Path $backupDir) {
     Remove-Item $backupDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
 
-# Back up only the .py and .txt files (not venv, not __pycache__)
-Get-ChildItem $InstallDir -File | Where-Object {
-    $_.Extension -in @('.py', '.txt', '.json', '.ps1') -and $_.DirectoryName -eq $InstallDir
+# Back up only the .py, .txt, .json, .ps1 files (not venv, not __pycache__)
+Get-ChildItem $InstallDir -File -ErrorAction SilentlyContinue | Where-Object {
+    $_.Extension -in @('.py', '.txt', '.json', '.ps1')
 } | ForEach-Object {
-    Copy-Item $_.FullName (Join-Path $backupDir $_.Name)
+    Copy-Item $_.FullName (Join-Path $backupDir $_.Name) -Force
 }
 
-Write-Ok "Backup saved to $backupDir"
+$backedUp = (Get-ChildItem $backupDir -File -ErrorAction SilentlyContinue).Count
+Write-Ok "Backup: $backedUp files saved to local temp"
 
 # ── Step 5: Extract and apply update ────────────────────────────────────
 Write-Step 'Applying update'
@@ -288,10 +313,15 @@ if (Test-Path $pycache) {
 # ── Step 7: Re-register and start the agent task ────────────────────────
 Write-Step 'Registering scheduled task (with watchdog)'
 
-$VenvDir = "$InstallDir\venv"
+# Task runs as normal user who has E: mapped — always use drive letter path
+$TaskDir  = 'E:\DDC\tools\agent'
+$VenvDir  = "$TaskDir\venv"
 
-if (-not (Test-Path "$VenvDir\Scripts\pythonw.exe")) {
-    Write-Fail "Cannot find $VenvDir\Scripts\pythonw.exe - venv may be broken."
+# But check pythonw against the path we CAN see (may be UNC or E:)
+$checkVenv = "$InstallDir\venv"
+
+if (-not (Test-Path "$checkVenv\Scripts\pythonw.exe")) {
+    Write-Fail "Cannot find pythonw.exe in venv - venv may be broken."
     Write-Host '    Agent will not auto-start. A full reinstall may be needed.' -ForegroundColor Yellow
 } else {
     # Remove old task
@@ -299,8 +329,8 @@ if (-not (Test-Path "$VenvDir\Scripts\pythonw.exe")) {
 
     $action = New-ScheduledTaskAction `
         -Execute "$VenvDir\Scripts\pythonw.exe" `
-        -Argument "`"$InstallDir\main.py`"" `
-        -WorkingDirectory $InstallDir
+        -Argument "`"$TaskDir\main.py`"" `
+        -WorkingDirectory $TaskDir
 
     $triggerLogon = New-ScheduledTaskTrigger -AtLogOn
 
