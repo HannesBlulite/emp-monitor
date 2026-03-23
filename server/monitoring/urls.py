@@ -30,4 +30,9 @@ urlpatterns = [
     path('api/notifications/pending/', api_views.notifications_pending, name='api_notifications_pending'),
     path('api/notifications/<int:pk>/ack/', api_views.notification_ack, name='api_notification_ack'),
     path('api/notifications/send/', api_views.send_notification, name='api_send_notification'),
+
+    # Agent command endpoints (remote restart / update)
+    path('api/agent/commands/pending/', api_views.agent_commands_pending, name='api_agent_commands_pending'),
+    path('api/agent/commands/<int:pk>/ack/', api_views.agent_command_ack, name='api_agent_command_ack'),
+    path('api/agent/commands/issue/', api_views.issue_agent_command, name='api_issue_agent_command'),
 ]

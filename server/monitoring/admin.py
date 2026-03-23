@@ -6,7 +6,7 @@ from django.contrib import admin
 from .models import (
     Employee, AgentToken, Screenshot, ActivityLog,
     AppUsageEntry, ProductivityRule, AgentSettings, AgentPackage,
-    Notification,
+    Notification, AgentCommand,
 )
 
 
@@ -70,4 +70,12 @@ class AgentSettingsAdmin(admin.ModelAdmin):
 class AgentPackageAdmin(admin.ModelAdmin):
     list_display = ['version', 'is_active', 'notes', 'created_at']
     list_filter = ['is_active']
+    readonly_fields = ['created_at']
+
+
+@admin.register(AgentCommand)
+class AgentCommandAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'command', 'issued_by', 'created_at', 'acknowledged_at']
+    list_filter = ['command', 'acknowledged_at']
+    search_fields = ['employee__display_name']
     readonly_fields = ['created_at']

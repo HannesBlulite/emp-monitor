@@ -292,3 +292,61 @@ class ServerCommunicator:
         except Exception as e:
             logger.debug(f"Notification ack error: {e}")
             return False
+
+    # -------------------------------------------------------------------
+    # Agent command endpoints (remote restart / update)
+    # -------------------------------------------------------------------
+
+    def fetch_commands(self):
+        """
+        Fetch pending commands (restart, update) from the server.
+
+        Returns:
+            list of dict, each with 'id', 'command', 'created_at'
+            or empty list on failure.
+        """
+        url = f'{self.server_url}/api/agent/commands/pending/'
+
+        try:
+            response = self.session.get(url, timeout=REQUEST_TIMEOUT)
+            if response.status_code == 200:
+                data = response.json()
+                commands = data.get('commands', [])
+                if commands:
+                    logger.info(f"Fetched {len(commands)} pending command(s)")
+                return commands
+            else:
+                logger.debug(f"Commands fetch returned HTTP {response.status_code}")
+                return []
+        except requests.ConnectionError:
+            logger.debug("Server unreachable — skipping command check")
+            return []
+        except Exception as e:
+            logger.debug(f"Command fetch error: {e}")
+            return []
+
+    def ack_command(self, command_id):
+        """
+        Acknowledge a command (mark as received on the server).
+
+        Args:
+            command_id: The server-side AgentCommand PK
+
+        Returns:
+            bool: True if acknowledged successfully
+        """
+        url = f'{self.server_url}/api/agent/commands/{command_id}/ack/'
+
+        try:
+            response = self.session.post(url, timeout=REQUEST_TIMEOUT)
+            if response.status_code == 200:
+                logger.info(f"Command {command_id} acknowledged")
+                return True
+            else:
+                logger.warning(
+                    f"Command ack failed (HTTP {response.status_code})"
+                )
+                return False
+        except Exception as e:
+            logger.debug(f"Command ack error: {e}")
+            return False

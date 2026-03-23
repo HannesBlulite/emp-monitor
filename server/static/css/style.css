@@ -447,6 +447,20 @@ a:hover {
     padding: var(--space-xs) var(--space-sm);
 }
 
+.card-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.btn-restart-agent {
+    font-size: 1.1em;
+    padding: 4px 8px;
+    line-height: 1;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
 .last-seen {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);

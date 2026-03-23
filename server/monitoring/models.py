@@ -258,3 +258,31 @@ class AgentPackage(models.Model):
 
     def __str__(self):
         return f"Agent v{self.version}{' (active)' if self.is_active else ''}"
+
+
+class AgentCommand(models.Model):
+    """
+    Queued commands issued by a manager to be picked up by an employee's agent.
+    The agent polls for pending commands and executes them
+    (e.g. restart, force-update).
+    """
+    COMMAND_CHOICES = [
+        ('restart', 'Restart Agent'),
+        ('update', 'Force Update'),
+    ]
+
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='agent_commands')
+    command = models.CharField(max_length=20, choices=COMMAND_CHOICES)
+    issued_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    acknowledged_at = models.DateTimeField(null=True, blank=True, help_text="When the agent picked up the command")
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['employee', 'acknowledged_at']),
+        ]
+
+    def __str__(self):
+        status = 'done' if self.acknowledged_at else 'pending'
+        return f"[{status}] {self.command} → {self.employee.display_name}"

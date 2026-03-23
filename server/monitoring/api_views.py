@@ -30,7 +30,7 @@ class CsrfExemptSessionAuth(SessionAuthentication):
 from .models import (
     Employee, AgentToken, Screenshot, ActivityLog,
     AppUsageEntry, AgentSettings, AgentPackage, ProductivityRule,
-    Notification,
+    Notification, AgentCommand,
 )
 
 logger = logging.getLogger('monitoring.api')
@@ -473,5 +473,130 @@ def send_notification(request):
 
     return Response(
         {'status': 'ok', 'count': len(created), 'notification_ids': created},
+        status=status.HTTP_201_CREATED
+    )
+
+
+# ---------------------------------------------------------------------------
+# Agent Command endpoints (remote restart / update)
+# ---------------------------------------------------------------------------
+
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def agent_commands_pending(request):
+    """
+    Return unacknowledged commands for this agent's employee.
+    The agent polls this alongside notification checks.
+    """
+    employee = authenticate_agent(request)
+    if not employee:
+        return Response(
+            {'error': 'Invalid or missing agent token'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    pending = AgentCommand.objects.filter(
+        employee=employee,
+        acknowledged_at__isnull=True,
+    ).order_by('created_at')[:10]
+
+    items = [
+        {
+            'id': cmd.id,
+            'command': cmd.command,
+            'created_at': cmd.created_at.isoformat(),
+        }
+        for cmd in pending
+    ]
+
+    return Response({'commands': items})
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def agent_command_ack(request, pk):
+    """
+    Mark a command as acknowledged (the agent received it and will act on it).
+    """
+    employee = authenticate_agent(request)
+    if not employee:
+        return Response(
+            {'error': 'Invalid or missing agent token'},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    try:
+        cmd = AgentCommand.objects.get(pk=pk, employee=employee)
+    except AgentCommand.DoesNotExist:
+        return Response(
+            {'error': 'Command not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    if not cmd.acknowledged_at:
+        cmd.acknowledged_at = timezone.now()
+        cmd.save(update_fields=['acknowledged_at'])
+
+    return Response({'status': 'ok'})
+
+
+@api_view(['POST'])
+@authentication_classes([CsrfExemptSessionAuth])
+def issue_agent_command(request):
+    """
+    Manager endpoint: issue a restart or update command to an employee's agent.
+    Requires Django session auth.
+
+    Expected JSON:
+    {
+        "employee_id": "EMP001",
+        "command": "restart"     // or "update"
+    }
+    """
+    if not request.user.is_authenticated:
+        return Response(
+            {'error': 'Authentication required'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    data = request.data
+    employee_id = data.get('employee_id', '').strip()
+    command = data.get('command', '').strip()
+
+    if not employee_id or not command:
+        return Response(
+            {'error': 'employee_id and command are required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if command not in ('restart', 'update'):
+        return Response(
+            {'error': 'Invalid command. Use "restart" or "update".'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        employee = Employee.objects.get(employee_id=employee_id, is_active=True)
+    except Employee.DoesNotExist:
+        return Response(
+            {'error': 'Employee not found'},
+            status=status.HTTP_404_NOT_FOUND
+        )
+
+    cmd = AgentCommand.objects.create(
+        employee=employee,
+        command=command,
+        issued_by=request.user,
+    )
+
+    logger.info(
+        f"Agent command '{command}' issued for {employee.display_name} "
+        f"by {request.user.username}"
+    )
+
+    return Response(
+        {'status': 'ok', 'command_id': cmd.id},
         status=status.HTTP_201_CREATED
     )

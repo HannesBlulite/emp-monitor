@@ -145,6 +145,7 @@ class EmpMonitorAgent:
             threading.Thread(target=self._settings_refresh_loop, daemon=True, name='SettingsLoop'),
             threading.Thread(target=self._update_check_loop, daemon=True, name='UpdateLoop'),
             threading.Thread(target=self._notification_loop, daemon=True, name='NotificationLoop'),
+            threading.Thread(target=self._command_poll_loop, daemon=True, name='CommandPollLoop'),
         ]
 
         for t in threads:
@@ -291,6 +292,56 @@ class EmpMonitorAgent:
                 self.logger.error(f"Notification loop error: {e}")
 
             self._interruptible_sleep(self.notification_poll_interval)
+
+    def _command_poll_loop(self):
+        """Periodically check for remote commands (restart, update)."""
+        # Wait a bit after startup
+        time.sleep(20)
+
+        while self.running:
+            try:
+                commands = self.communicator.fetch_commands()
+                for cmd in commands:
+                    cmd_type = cmd.get('command', '')
+                    cmd_id = cmd.get('id')
+                    self.logger.info(f"Received remote command: {cmd_type} (id={cmd_id})")
+
+                    # Acknowledge immediately so it's not re-sent
+                    self.communicator.ack_command(cmd_id)
+
+                    if cmd_type == 'restart':
+                        self.logger.info("Remote restart requested — restarting agent...")
+                        self.stop()
+                        restart_agent()
+                        return
+
+                    elif cmd_type == 'update':
+                        self.logger.info("Remote update requested — checking for update...")
+                        result = check_for_update(
+                            self.config['server_url'],
+                            self.communicator.session,
+                        )
+                        if result and result.get('update_available'):
+                            if apply_update(
+                                self.config['server_url'],
+                                self.communicator.session,
+                                result['download_url'],
+                            ):
+                                self.logger.info("Update applied via remote command, restarting...")
+                                self.stop()
+                                restart_agent()
+                                return
+                        else:
+                            # No update available, just restart
+                            self.logger.info("No update available — restarting agent anyway")
+                            self.stop()
+                            restart_agent()
+                            return
+
+            except Exception as e:
+                self.logger.error(f"Command poll error: {e}")
+
+            self._interruptible_sleep(30)  # Check every 30 seconds
 
     def _update_check_loop(self):
         """Periodically check for agent updates."""

@@ -10,6 +10,17 @@
     </div>
     <h1>{{ employee.display_name }}</h1>
     <p class="subtitle">{{ employee.department|default:"No department" }} &middot; {{ employee.pc_name|default:"Unknown PC" }} &middot; ID: {{ employee.employee_id }}</p>
+    {% if request.user.is_staff or request.user.is_superuser %}
+    <div class="agent-commands" style="margin-top: 10px;">
+        <button class="btn btn-sm btn-outline" id="btn-restart-agent"
+                data-employee-id="{{ employee.employee_id }}"
+                title="Send restart command to agent">&#x21bb; Restart Agent</button>
+        <button class="btn btn-sm btn-outline" id="btn-update-agent"
+                data-employee-id="{{ employee.employee_id }}"
+                title="Force agent to update and restart">&#x2B06; Update Agent</button>
+        <span id="cmd-status" style="margin-left: 10px; font-size: 0.85em; color: var(--text-secondary);"></span>
+    </div>
+    {% endif %}
 </div>
 
 <!-- Date Filter -->
@@ -255,5 +266,53 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 'ArrowLeft') navScreenshot(-1);
     if (e.key === 'ArrowRight') navScreenshot(1);
 });
+
+// --- Agent remote commands ---
+(function() {
+    var csrfToken = '{{ csrf_token }}';
+
+    function sendCommand(command, button) {
+        var empId = button.getAttribute('data-employee-id');
+        var label = command === 'restart' ? 'Restart' : 'Update';
+        if (!confirm(label + ' agent for {{ employee.display_name }}?')) return;
+
+        var statusEl = document.getElementById('cmd-status');
+        button.disabled = true;
+        statusEl.textContent = 'Sending ' + command + ' command...';
+
+        fetch('/api/agent/commands/issue/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({
+                employee_id: empId,
+                command: command,
+            }),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.status === 'ok') {
+                statusEl.textContent = label + ' command sent. Agent will pick it up within 30 seconds.';
+                statusEl.style.color = 'var(--color-success, #22c55e)';
+            } else {
+                statusEl.textContent = 'Failed: ' + (data.error || 'Unknown error');
+                statusEl.style.color = 'var(--color-error, #ef4444)';
+            }
+            button.disabled = false;
+        })
+        .catch(function() {
+            statusEl.textContent = 'Network error — could not send command';
+            statusEl.style.color = 'var(--color-error, #ef4444)';
+            button.disabled = false;
+        });
+    }
+
+    var btnRestart = document.getElementById('btn-restart-agent');
+    var btnUpdate = document.getElementById('btn-update-agent');
+    if (btnRestart) btnRestart.addEventListener('click', function() { sendCommand('restart', this); });
+    if (btnUpdate) btnUpdate.addEventListener('click', function() { sendCommand('update', this); });
+})();
 </script>
 {% endblock %}

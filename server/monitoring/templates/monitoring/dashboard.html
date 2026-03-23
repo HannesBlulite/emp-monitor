@@ -83,10 +83,71 @@
                     Never connected
                 {% endif %}
             </span>
-            <a href="{% url 'monitoring:employee_detail' item.employee.employee_id %}" class="btn btn-sm btn-primary">View Details</a>
+            <div class="card-footer-actions">
+                {% if is_manager %}
+                <button class="btn btn-sm btn-outline btn-restart-agent"
+                        data-employee-id="{{ item.employee.employee_id }}"
+                        data-employee-name="{{ item.employee.display_name }}"
+                        title="Restart agent remotely">&#x21bb;</button>
+                {% endif %}
+                <a href="{% url 'monitoring:employee_detail' item.employee.employee_id %}" class="btn btn-sm btn-primary">View Details</a>
+            </div>
         </div>
     </div>
     {% endfor %}
 </div>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    var csrfToken = '{{ csrf_token }}';
+
+    document.querySelectorAll('.btn-restart-agent').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var empId = this.getAttribute('data-employee-id');
+            var empName = this.getAttribute('data-employee-name');
+            if (!confirm('Restart agent for ' + empName + '?')) return;
+
+            var button = this;
+            button.disabled = true;
+            button.textContent = '...';
+
+            fetch('/api/agent/commands/issue/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': csrfToken,
+                },
+                body: JSON.stringify({
+                    employee_id: empId,
+                    command: 'restart',
+                }),
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.status === 'ok') {
+                    button.textContent = '\u2713';
+                    button.title = 'Restart command sent';
+                    setTimeout(function() {
+                        button.textContent = '\u21bb';
+                        button.disabled = false;
+                    }, 3000);
+                } else {
+                    alert('Failed: ' + (data.error || 'Unknown error'));
+                    button.textContent = '\u21bb';
+                    button.disabled = false;
+                }
+            })
+            .catch(function() {
+                alert('Network error — could not send restart command');
+                button.textContent = '\u21bb';
+                button.disabled = false;
+            });
+        });
+    });
+})();
+</script>
 {% endblock %}
