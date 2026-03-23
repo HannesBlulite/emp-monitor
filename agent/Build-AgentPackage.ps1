@@ -28,7 +28,8 @@ $files = @(
     'config.json',
     'requirements-agent.txt',
     'Install-EmpAgent.ps1',
-    'Uninstall-EmpAgent.ps1'
+    'Uninstall-EmpAgent.ps1',
+    'Update-DDCTools.ps1'
 )
 
 # Create output directory

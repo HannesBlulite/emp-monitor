@@ -13,11 +13,11 @@
 
 .EXAMPLE
     .\Fix-AgentTask.ps1
-    .\Fix-AgentTask.ps1 -InstallDir 'C:\DDC\tools\empmonitor-agent'
+    .\Fix-AgentTask.ps1 -InstallDir 'E:\DDC\tools\empmonitor-agent'
 #>
 
 param(
-    [string]$InstallDir = 'C:\DDC\tools\agent',
+    [string]$InstallDir = 'E:\DDC\tools\agent',
     [string]$TaskName = 'EmpMonitorAgent'
 )
 

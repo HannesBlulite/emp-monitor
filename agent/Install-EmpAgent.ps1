@@ -28,7 +28,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # ── Constants ────────────────────────────────────────────────────────────
-$InstallDir    = 'C:\DDC\tools\agent'
+$InstallDir    = 'E:\DDC\tools\agent'
 $VenvDir       = "$InstallDir\venv"
 $ServerUrl     = 'https://ddcemp.co.za'
 $TaskName      = 'EmpMonitorAgent'

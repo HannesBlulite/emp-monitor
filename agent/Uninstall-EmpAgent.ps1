@@ -9,7 +9,7 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$InstallDir = 'C:\DDC\tools\agent'
+$InstallDir = 'E:\DDC\tools\agent'
 $TaskName   = 'EmpMonitorAgent'
 
 function Test-Admin {
