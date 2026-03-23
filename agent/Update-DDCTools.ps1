@@ -227,22 +227,56 @@ if (Test-Path $pycache) {
     Write-Info 'Cleared __pycache__'
 }
 
-# ── Step 7: Restart the agent ───────────────────────────────────────────
-Write-Step 'Starting agent'
+# ── Step 7: Re-register and start the agent task ────────────────────────
+Write-Step 'Registering scheduled task (with watchdog)'
 
-$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-if ($task) {
-    Start-ScheduledTask -TaskName $TaskName
-    Start-Sleep -Seconds 2
-    $task = Get-ScheduledTask -TaskName $TaskName
-    if ($task.State -eq 'Running') {
-        Write-Ok 'Agent started successfully'
-    } else {
-        Write-Info "Task state: $($task.State) (it may start at next logon)"
-    }
+$VenvDir = "$InstallDir\venv"
+
+if (-not (Test-Path "$VenvDir\Scripts\pythonw.exe")) {
+    Write-Fail "Cannot find $VenvDir\Scripts\pythonw.exe - venv may be broken."
+    Write-Host '    Agent will not auto-start. A full reinstall may be needed.' -ForegroundColor Yellow
 } else {
-    Write-Fail "Scheduled task '$TaskName' not found - agent won't auto-start."
-    Write-Host '    Ask your administrator to re-register the task.' -ForegroundColor Yellow
+    # Remove old task
+    Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
+
+    $action = New-ScheduledTaskAction `
+        -Execute "$VenvDir\Scripts\pythonw.exe" `
+        -Argument "`"$InstallDir\main.py`"" `
+        -WorkingDirectory $InstallDir
+
+    $triggerLogon = New-ScheduledTaskTrigger -AtLogOn
+
+    $triggerRepeat = New-ScheduledTaskTrigger -Once -At '00:00' `
+        -RepetitionInterval (New-TimeSpan -Minutes 15)
+
+    $settings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -StartWhenAvailable `
+        -RestartCount 999 `
+        -RestartInterval (New-TimeSpan -Minutes 1) `
+        -ExecutionTimeLimit (New-TimeSpan -Hours 0) `
+        -MultipleInstances IgnoreNew
+
+    Register-ScheduledTask `
+        -TaskName $TaskName `
+        -Action $action `
+        -Trigger @($triggerLogon, $triggerRepeat) `
+        -Settings $settings `
+        -Description 'EMP Monitor Agent - captures screenshots and tracks activity' `
+        -RunLevel Limited `
+        -Force | Out-Null
+
+    Start-ScheduledTask -TaskName $TaskName
+    Start-Sleep -Seconds 3
+
+    $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($task -and $task.State -eq 'Running') {
+        Write-Ok "Agent started (task state: Running)"
+    } else {
+        Write-Ok "Task registered (state: $($task.State) - will start at next logon)"
+    }
+    Write-Info 'Triggers: AtLogOn + Repeat every 15 min (watchdog)'
 }
 
 # ── Done ─────────────────────────────────────────────────────────────────
