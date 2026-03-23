@@ -27,11 +27,16 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 }
 
 # ── Configuration ────────────────────────────────────────────────────────
-$SharedFolder  = '\\10.147.17.115\EDrive\DDC\tools\updates'
 $PackageName   = 'empmonitor-agent.zip'
-
 $InstallDir    = 'E:\DDC\tools\agent'
 $TaskName      = 'EmpMonitorAgent'
+
+# Possible locations for the update package (tried in order)
+$SearchPaths = @(
+    $PSScriptRoot,                                    # Same folder as this script
+    'E:\DDC\tools\updates',                           # Mapped drive
+    '\\10.147.17.115\EDrive\DDC\tools\updates'        # UNC path
+)
 
 # Files that must NEVER be overwritten (employee-specific config)
 $ProtectedFiles = @('config.json')
@@ -55,21 +60,33 @@ Write-Host '============================================================' -Foreg
 Write-Host '  DDC Tools - Agent Updater' -ForegroundColor Yellow
 Write-Host '============================================================' -ForegroundColor Yellow
 
-# ── Step 1: Verify shared folder is accessible ──────────────────────────
-Write-Step 'Checking shared folder'
+# ── Step 1: Find the update package ─────────────────────────────────────
+Write-Step 'Looking for update package'
 
-$PackagePath = Join-Path $SharedFolder $PackageName
-
-if (-not (Test-Path $SharedFolder)) {
-    Write-Fail "Cannot access shared folder: $SharedFolder"
-    Write-Host '    Make sure you are connected to the office network.' -ForegroundColor Yellow
-    Pause-BeforeExit
-    exit 1
+$PackagePath = $null
+foreach ($folder in $SearchPaths) {
+    if (-not $folder) { continue }
+    $candidate = Join-Path $folder $PackageName
+    Write-Info "Trying: $candidate"
+    if (Test-Path $candidate) {
+        $PackagePath = $candidate
+        break
+    }
 }
 
-if (-not (Test-Path $PackagePath)) {
-    Write-Fail "Update package not found: $PackagePath"
-    Write-Host '    Ask your administrator to place the latest package in the shared folder.' -ForegroundColor Yellow
+if (-not $PackagePath) {
+    # Last resort: try to reconnect the network share
+    Write-Info 'Attempting network reconnection...'
+    net use '\\10.147.17.115\EDrive' 2>&1 | Out-Null
+    $candidate = '\\10.147.17.115\EDrive\DDC\tools\updates\' + $PackageName
+    if (Test-Path $candidate) {
+        $PackagePath = $candidate
+    }
+}
+
+if (-not $PackagePath) {
+    Write-Fail "Cannot find $PackageName in any known location."
+    Write-Host '    Make sure you are connected to the office network.' -ForegroundColor Yellow
     Pause-BeforeExit
     exit 1
 }
