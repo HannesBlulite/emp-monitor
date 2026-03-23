@@ -296,6 +296,28 @@ if (-not (Test-Path "$VenvDir\Scripts\pythonw.exe")) {
     Write-Info 'Triggers: AtLogOn + Repeat every 15 min (watchdog)'
 }
 
+# ── Step 8: Create desktop shortcut (so staff always runs latest) ────────
+$desktopPath = [Environment]::GetFolderPath('Desktop')
+$shortcutPath = Join-Path $desktopPath 'Update DDC Tools.lnk'
+
+if (-not (Test-Path $shortcutPath)) {
+    Write-Step 'Creating desktop shortcut'
+
+    $scriptPath = '\\10.147.17.115\EDrive\DDC\tools\updates\Update-DDCTools.ps1'
+    $ws = New-Object -ComObject WScript.Shell
+    $shortcut = $ws.CreateShortcut($shortcutPath)
+    $shortcut.TargetPath = 'powershell.exe'
+    $shortcut.Arguments = "-ExecutionPolicy Bypass -File `"$scriptPath`""
+    $shortcut.WorkingDirectory = '\\10.147.17.115\EDrive\DDC\tools\updates'
+    $shortcut.Description = 'Update DDC Tools (EMP Monitor Agent)'
+    $shortcut.Save()
+
+    Write-Ok "Shortcut created on Desktop: 'Update DDC Tools'"
+    Write-Info 'Next time, just double-click the shortcut.'
+} else {
+    Write-Info 'Desktop shortcut already exists.'
+}
+
 # ── Done ─────────────────────────────────────────────────────────────────
 Write-Host ''
 Write-Host '============================================================' -ForegroundColor Green
