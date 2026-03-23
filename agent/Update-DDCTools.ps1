@@ -294,8 +294,25 @@ if (-not (Test-Path "$VenvDir\Scripts\python.exe")) {
 
     if ($PythonExe) {
         Write-Info "Found Python: $PythonExe"
-        & $PythonExe -m venv $VenvDir
-        Write-Ok 'Virtual environment created'
+
+        # Create venv in LOCAL temp first (ensurepip fails on UNC/network paths)
+        $localVenv = Join-Path $env:TEMP 'ddc-agent-venv'
+        if (Test-Path $localVenv) { Remove-Item $localVenv -Recurse -Force }
+
+        Write-Info 'Creating venv locally (avoids network path issues)...'
+        & $PythonExe -m venv $localVenv 2>&1 | Out-Null
+
+        if (Test-Path "$localVenv\Scripts\python.exe") {
+            # Copy the whole venv to the network drive
+            Write-Info 'Copying venv to install directory...'
+            if (Test-Path $VenvDir) { Remove-Item $VenvDir -Recurse -Force }
+            Copy-Item $localVenv $VenvDir -Recurse -Force
+            Remove-Item $localVenv -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Ok 'Virtual environment created'
+        } else {
+            Write-Fail 'venv creation failed locally.'
+            Remove-Item $localVenv -Recurse -Force -ErrorAction SilentlyContinue
+        }
     } else {
         Write-Fail 'Python >= 3.10 not found. Cannot create venv.'
         Write-Host '    Install Python 3.12 first, then run this script again.' -ForegroundColor Yellow
@@ -377,12 +394,11 @@ if (-not (Test-Path "$checkVenv\Scripts\pythonw.exe")) {
     Write-Info 'Triggers: AtLogOn + Repeat every 15 min (watchdog)'
 }
 
-# ── Step 8: Create desktop shortcut (so staff always runs latest) ────────
+# ── Step 8: Create/update desktop shortcut (always refresh to ensure admin flag) ──
 $desktopPath = [Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktopPath 'Update DDC Tools.lnk'
 
-if (-not (Test-Path $shortcutPath)) {
-    Write-Step 'Creating desktop shortcut'
+Write-Step 'Setting up desktop shortcut'
 
     $scriptPath = '\\10.147.17.115\EDrive\DDC\tools\updates\Update-DDCTools.ps1'
     $ws = New-Object -ComObject WScript.Shell
@@ -393,11 +409,13 @@ if (-not (Test-Path $shortcutPath)) {
     $shortcut.Description = 'Update DDC Tools (EMP Monitor Agent)'
     $shortcut.Save()
 
-    Write-Ok "Shortcut created on Desktop: 'Update DDC Tools'"
+    # Set "Run as Administrator" flag on the shortcut
+    $bytes = [System.IO.File]::ReadAllBytes($shortcutPath)
+    $bytes[0x15] = $bytes[0x15] -bor 0x20
+    [System.IO.File]::WriteAllBytes($shortcutPath, $bytes)
+
+    Write-Ok "Shortcut created on Desktop: 'Update DDC Tools' (runs as admin)"
     Write-Info 'Next time, just double-click the shortcut.'
-} else {
-    Write-Info 'Desktop shortcut already exists.'
-}
 
 # ── Done ─────────────────────────────────────────────────────────────────
 Write-Host ''
