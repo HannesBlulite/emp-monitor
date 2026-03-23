@@ -55,6 +55,7 @@ $ProtectedFiles = @('config.json')
 
 function Write-Step($msg)    { Write-Host "`n>>> $msg" -ForegroundColor Cyan }
 function Write-Ok($msg)      { Write-Host "    [OK] $msg" -ForegroundColor Green }
+function Write-Warn($msg)    { Write-Host "    [WARN] $msg" -ForegroundColor Yellow }
 function Write-Fail($msg)    { Write-Host "    [FAIL] $msg" -ForegroundColor Red }
 function Write-Info($msg)    { Write-Host "    $msg" -ForegroundColor Gray }
 
@@ -319,7 +320,7 @@ if (-not $venvValid) {
         if (Test-Path $localVenv) { Remove-Item $localVenv -Recurse -Force }
 
         Write-Info 'Creating venv locally (avoids network path issues)...'
-        & $PythonExe -m venv $localVenv 2>&1 | Out-Null
+        & $PythonExe -m venv $localVenv 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
 
         if (Test-Path "$localVenv\Scripts\python.exe") {
             # Move local temp venv to permanent local dir
@@ -339,20 +340,38 @@ if (-not $venvValid) {
 }
 
 if ((Test-Path $VenvPython) -and (Test-Path $ReqFile)) {
-    Write-Info 'Installing/updating dependencies...'
+    Write-Info 'Installing dependencies (this may take a moment)...'
+
+    # Upgrade pip first (don't suppress output so we can see errors)
     $ErrorActionPreference = 'Continue'
-    & $VenvPython -m pip install --upgrade pip --quiet 2>&1 | Out-Null
-    & $VenvPython -m pip install -r $ReqFile --quiet 2>&1 | Out-Null
+    & $VenvPython -m pip install --upgrade pip 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+    & $VenvPython -m pip install -r $ReqFile 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+    $pipExit = $LASTEXITCODE
     $ErrorActionPreference = 'Stop'
 
-    # Verify critical imports
-    $check = & $VenvPython -c "import mss; import requests; import PIL; print('OK')" 2>&1
-    if ($check -ne 'OK') {
-        Write-Fail "Dependency check failed: $check"
-        Write-Info 'Retrying with verbose output...'
-        & $VenvPython -m pip install -r $ReqFile 2>&1
+    if ($pipExit -ne 0) {
+        Write-Fail "pip install failed (exit code $pipExit)"
+    }
+
+    # Always verify by actually importing - this is the only check that matters
+    $checkOutput = & $VenvPython -c "import mss; import requests; import PIL; print('DEPS_OK')" 2>&1
+    $checkStr = ($checkOutput | Out-String).Trim()
+    if ($checkStr -match 'DEPS_OK') {
+        Write-Ok 'Dependencies verified'
     } else {
-        Write-Ok 'Dependencies up to date'
+        Write-Fail "Dependencies NOT installed. Import check output:"
+        Write-Host "    $checkStr" -ForegroundColor Red
+        Write-Info 'Attempting reinstall...'
+        & $VenvPython -m pip install --force-reinstall -r $ReqFile 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+        # Final verification
+        $recheck = & $VenvPython -c "import mss; import requests; import PIL; print('DEPS_OK')" 2>&1
+        $recheckStr = ($recheck | Out-String).Trim()
+        if ($recheckStr -match 'DEPS_OK') {
+            Write-Ok 'Dependencies verified after reinstall'
+        } else {
+            Write-Fail "CRITICAL: Dependencies still missing after reinstall. Agent will NOT work."
+            Write-Host "    Output: $recheckStr" -ForegroundColor Red
+        }
     }
 } elseif (-not (Test-Path $VenvPython)) {
     Write-Fail 'Python not found in venv - venv creation may have failed.'
@@ -409,13 +428,30 @@ if (-not (Test-Path "$LocalVenvDir\Scripts\pythonw.exe")) {
         -Force | Out-Null
 
     Start-ScheduledTask -TaskName $TaskName
-    Start-Sleep -Seconds 3
+    Start-Sleep -Seconds 5
 
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if ($task -and $task.State -eq 'Running') {
-        Write-Ok "Agent started (task state: Running)"
+        # Double-check the process is actually alive
+        $proc = Get-Process pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*agent-venv*" }
+        if ($proc) {
+            Write-Ok "Agent started and running (PID: $($proc.Id))"
+        } else {
+            Write-Warn "Task says Running but no pythonw process found - agent may have crashed"
+            Write-Info "Try running manually to see errors:"
+            Write-Host "    & `"$LocalVenvDir\Scripts\python.exe`" `"$TaskDir\main.py`"" -ForegroundColor Yellow
+        }
     } else {
-        Write-Ok "Task registered (state: $($task.State) - will start at next logon)"
+        Write-Warn "Task state: $($task.State) - agent may have crashed on start"
+        Write-Info "Diagnosing..."
+        $testOutput = & "$LocalVenvDir\Scripts\python.exe" -c "import sys; sys.path.insert(0, r'$TaskDir'); import main" 2>&1
+        $testStr = ($testOutput | Out-String).Trim()
+        if ($testStr) {
+            Write-Fail "Agent import error:"
+            Write-Host "    $testStr" -ForegroundColor Red
+        } else {
+            Write-Ok "Task registered (will start at next logon)"
+        }
     }
     Write-Info 'Triggers: AtLogOn + Repeat every 15 min (watchdog)'
 }

@@ -163,18 +163,19 @@ Write-Ok 'Virtual environment ready'
 
 Write-Step 'Installing Python dependencies'
 $ErrorActionPreference = 'Continue'
-& $VenvPython -m pip install --upgrade pip --quiet 2>&1 | Out-Null
-& $VenvPython -m pip install -r "$InstallDir\requirements-agent.txt" --quiet 2>&1 | Out-Null
+& $VenvPython -m pip install --upgrade pip 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+& $VenvPython -m pip install -r "$InstallDir\requirements-agent.txt" 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
 $ErrorActionPreference = 'Stop'
 
 # Verify critical imports
-$check = & $VenvPython -c "import mss; import requests; import PIL; print('OK')" 2>&1
-if ($check -ne 'OK') {
-    Write-Fail "Dependency check failed: $check"
+$checkOutput = & $VenvPython -c "import mss; import requests; import PIL; print('DEPS_OK')" 2>&1
+$checkStr = ($checkOutput | Out-String).Trim()
+if ($checkStr -match 'DEPS_OK') {
+    Write-Ok 'Dependencies installed and verified'
+} else {
+    Write-Fail "Dependency check failed: $checkStr"
     exit 1
 }
-
-Write-Ok 'Dependencies installed and verified'
 
 # ── Step 4: Write config ────────────────────────────────────────────────
 Write-Step 'Writing agent configuration'
