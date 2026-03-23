@@ -18,6 +18,14 @@
     Double-click or right-click > Run with PowerShell
 #>
 
+# ── Self-elevate to Administrator if needed ──────────────────────────────
+$identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($identity)
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Start-Process powershell.exe -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    exit
+}
+
 # ── Configuration ────────────────────────────────────────────────────────
 $SharedFolder  = '\\10.147.17.115\EDrive\DDC\tools\updates'
 $PackageName   = 'empmonitor-agent.zip'
