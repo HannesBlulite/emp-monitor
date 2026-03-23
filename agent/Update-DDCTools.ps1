@@ -263,9 +263,10 @@ $LocalAgentDir = "$env:LOCALAPPDATA\DDC\agent-venv"
 if (-not (Test-Path $LocalAgentDir)) {
     New-Item -ItemType Directory -Path $LocalAgentDir -Force | Out-Null
 }
-$VenvDir  = $LocalAgentDir
-$VenvPip  = "$VenvDir\Scripts\pip.exe"
-$ReqFile  = "$InstallDir\requirements-agent.txt"
+$VenvDir     = $LocalAgentDir
+$VenvPython  = "$VenvDir\Scripts\python.exe"
+$VenvPip     = "$VenvDir\Scripts\pip.exe"
+$ReqFile     = "$InstallDir\requirements-agent.txt"
 
 # Clean up old network-share venv if it exists (may fail if locked — that's OK)
 $OldNetVenv = "$InstallDir\venv"
@@ -337,15 +338,24 @@ if (-not $venvValid) {
     }
 }
 
-if ((Test-Path $VenvPip) -and (Test-Path $ReqFile)) {
+if ((Test-Path $VenvPython) -and (Test-Path $ReqFile)) {
     Write-Info 'Installing/updating dependencies...'
     $ErrorActionPreference = 'Continue'
-    & $VenvPip install --upgrade pip --quiet 2>&1 | Out-Null
-    & $VenvPip install -r $ReqFile --quiet 2>&1 | Out-Null
+    & $VenvPython -m pip install --upgrade pip --quiet 2>&1 | Out-Null
+    & $VenvPython -m pip install -r $ReqFile --quiet 2>&1 | Out-Null
     $ErrorActionPreference = 'Stop'
-    Write-Ok 'Dependencies up to date'
-} elseif (-not (Test-Path $VenvPip)) {
-    Write-Fail 'pip not found - venv creation may have failed.'
+
+    # Verify critical imports
+    $check = & $VenvPython -c "import mss; import requests; import PIL; print('OK')" 2>&1
+    if ($check -ne 'OK') {
+        Write-Fail "Dependency check failed: $check"
+        Write-Info 'Retrying with verbose output...'
+        & $VenvPython -m pip install -r $ReqFile 2>&1
+    } else {
+        Write-Ok 'Dependencies up to date'
+    }
+} elseif (-not (Test-Path $VenvPython)) {
+    Write-Fail 'Python not found in venv - venv creation may have failed.'
 }
 
 # Clear __pycache__

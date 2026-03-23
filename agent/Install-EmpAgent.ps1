@@ -163,8 +163,8 @@ Write-Ok 'Virtual environment ready'
 
 Write-Step 'Installing Python dependencies'
 $ErrorActionPreference = 'Continue'
-& $VenvPip install --upgrade pip --quiet 2>&1 | Out-Null
-& $VenvPip install -r "$InstallDir\requirements-agent.txt" --quiet 2>&1 | Out-Null
+& $VenvPython -m pip install --upgrade pip --quiet 2>&1 | Out-Null
+& $VenvPython -m pip install -r "$InstallDir\requirements-agent.txt" --quiet 2>&1 | Out-Null
 $ErrorActionPreference = 'Stop'
 
 # Verify critical imports
