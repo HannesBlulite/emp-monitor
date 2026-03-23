@@ -22,7 +22,17 @@
 $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    Start-Process powershell.exe -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`""
+    # Convert mapped-drive path to UNC so the elevated session can find the script
+    $elevatedPath = $PSCommandPath
+    if ($elevatedPath -match '^([A-Z]):\\') {
+        $driveLetter = $Matches[1]
+        $netUse = net use "${driveLetter}:" 2>&1
+        if ($netUse -match '\\\\[^\s]+') {
+            $uncRoot = $Matches[0]
+            $elevatedPath = $elevatedPath -replace "^${driveLetter}:\\", "$uncRoot\"
+        }
+    }
+    Start-Process powershell.exe -Verb RunAs -ArgumentList "-ExecutionPolicy Bypass -File `"$elevatedPath`""
     exit
 }
 
