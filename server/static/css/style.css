@@ -1159,14 +1159,14 @@ select.category-neutral {
     background: var(--color-text-muted);
 }
 
-/* Bulk action bar hidden state */
+/* Bulk action bar hidden state — !important needed to override .bulk-action-bar base display:flex */
 .bulk-action-bar--hidden {
-    display: none;
+    display: none !important;
 }
 
-/* Edit modal hidden state */
+/* Edit modal hidden state — !important needed to override .edit-modal base display:flex */
 .edit-modal--hidden {
-    display: none;
+    display: none !important;
 }
 
 /* Import form layout */
