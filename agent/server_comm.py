@@ -39,9 +39,10 @@ class ServerCommunicator:
             'X-Agent-Hostname': platform.node(),
             'X-Agent-Local-IP': self._get_local_ip(),
         })
-        self._queue_dir = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), 'upload_queue'
+        local_data = os.path.join(
+            os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'DDC'
         )
+        self._queue_dir = os.path.join(local_data, 'upload_queue')
         os.makedirs(self._queue_dir, exist_ok=True)
 
     @staticmethod

@@ -22,10 +22,12 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # ═══ Configuration ═══════════════════════════════════════════════════════
-$AgentDir   = 'E:\DDC\tools\agent'
-$ConfigPath = "$AgentDir\config.json"
-$TaskName   = 'EmpMonitorAgent'
-$ServerUrl  = 'https://ddcemp.co.za'
+$AgentDir       = 'E:\DDC\tools\agent'
+$LocalConfigDir = "$env:LOCALAPPDATA\DDC"
+$ConfigPath     = "$LocalConfigDir\config.json"
+$LegacyConfig   = "$AgentDir\config.json"
+$TaskName       = 'EmpMonitorAgent'
+$ServerUrl      = 'https://ddcemp.co.za'
 
 # Employee token map (from production database)
 $Tokens = @{
@@ -81,30 +83,33 @@ Write-Ok "Agent directory: $AgentDir"
 Write-Step "Identifying employee"
 
 if ($Employee -eq '') {
-    # Try to auto-detect from existing config
-    if (Test-Path $ConfigPath) {
-        try {
-            # Read raw bytes to handle BOM
-            $rawBytes = [System.IO.File]::ReadAllBytes($ConfigPath)
-            $rawText = if ($rawBytes.Length -ge 3 -and $rawBytes[0] -eq 0xEF -and $rawBytes[1] -eq 0xBB -and $rawBytes[2] -eq 0xBF) {
-                [System.Text.Encoding]::UTF8.GetString($rawBytes, 3, $rawBytes.Length - 3)
-            } else {
-                [System.Text.Encoding]::UTF8.GetString($rawBytes)
-            }
-            $existingConfig = $rawText | ConvertFrom-Json
-            $existingToken = $existingConfig.agent_token
+    # Try to auto-detect from local config first, then legacy shared-drive config
+    $configsToTry = @($ConfigPath, $LegacyConfig)
+    foreach ($cfgPath in $configsToTry) {
+        if ($Employee -ne '') { break }
+        if (Test-Path $cfgPath) {
+            try {
+                $rawBytes = [System.IO.File]::ReadAllBytes($cfgPath)
+                $rawText = if ($rawBytes.Length -ge 3 -and $rawBytes[0] -eq 0xEF -and $rawBytes[1] -eq 0xBB -and $rawBytes[2] -eq 0xBF) {
+                    [System.Text.Encoding]::UTF8.GetString($rawBytes, 3, $rawBytes.Length - 3)
+                } else {
+                    [System.Text.Encoding]::UTF8.GetString($rawBytes)
+                }
+                $existingConfig = $rawText | ConvertFrom-Json
+                $existingToken = $existingConfig.agent_token
 
-            if ($existingToken -and $existingToken -ne 'REPLACE_WITH_AGENT_TOKEN') {
-                foreach ($name in $Tokens.Keys) {
-                    if ($Tokens[$name] -eq $existingToken) {
-                        $Employee = $name
-                        Write-Ok "Auto-detected: $Employee (from existing token)"
-                        break
+                if ($existingToken -and $existingToken -ne 'REPLACE_WITH_AGENT_TOKEN') {
+                    foreach ($name in $Tokens.Keys) {
+                        if ($Tokens[$name] -eq $existingToken) {
+                            $Employee = $name
+                            Write-Ok "Auto-detected: $Employee (from $cfgPath)"
+                            break
+                        }
                     }
                 }
+            } catch {
+                Write-Warn "Could not parse config at ${cfgPath}: $_"
             }
-        } catch {
-            Write-Warn "Could not parse existing config: $_"
         }
     }
 }
@@ -186,16 +191,11 @@ if (-not $copied) {
     Write-Info "You may need to manually copy main.py to $AgentDir"
 }
 
-# ── Step 6: Fix config.json (BOM-free, correct token) ───────────────────
-Write-Step "Writing config.json (BOM-free)"
+# ── Step 6: Fix config.json (LOCAL per-PC, BOM-free, correct token) ─────
+Write-Step "Writing config.json to local PC"
 
-# Check for existing BOM first
-if (Test-Path $ConfigPath) {
-    $bytes = [System.IO.File]::ReadAllBytes($ConfigPath)
-    $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
-    if ($hasBom) {
-        Write-Info "Existing config had UTF-8 BOM (this was the bug!)"
-    }
+if (-not (Test-Path $LocalConfigDir)) {
+    New-Item -ItemType Directory -Path $LocalConfigDir -Force | Out-Null
 }
 
 $config = @{
@@ -212,6 +212,12 @@ $config = @{
 # Write WITHOUT BOM
 [System.IO.File]::WriteAllText($ConfigPath, $config, (New-Object System.Text.UTF8Encoding $false))
 Write-Ok "Config written to $ConfigPath"
+
+# Remove any shared-drive config to prevent confusion
+if (Test-Path $LegacyConfig) {
+    Remove-Item $LegacyConfig -Force -ErrorAction SilentlyContinue
+    Write-Info "Removed shared-drive config.json (now stored locally)"
+}
 
 # Verify no BOM
 $verifyBytes = [System.IO.File]::ReadAllBytes($ConfigPath)
@@ -251,8 +257,8 @@ if ($task) {
 
 # ── Step 9: Quick verification ──────────────────────────────────────────
 Write-Step "Verification"
-$logDir = "$env:LOCALAPPDATA\DDC\logs"
-$logFile = Join-Path $logDir "emp_agent.log"
+$logDir = "$LocalConfigDir\logs"
+$logFile = Join-Path $logDir "agent.log"
 if (Test-Path $logFile) {
     Write-Info "Latest log entries:"
     Get-Content $logFile -Tail 10 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }

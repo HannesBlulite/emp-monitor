@@ -32,11 +32,47 @@ from version import AGENT_VERSION
 # Configuration
 # ---------------------------------------------------------------------------
 
-CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+# Local config dir — unique per PC, not on the shared network drive
+LOCAL_DATA_DIR = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'DDC')
+LOCAL_CONFIG_PATH = os.path.join(LOCAL_DATA_DIR, 'config.json')
+
+# Legacy path (on the shared drive, next to main.py) — used for migration only
+LEGACY_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.json')
+
+
+def _resolve_config_path():
+    """
+    Return the path to the config file this agent should use.
+
+    Priority:
+      1. Local per-PC config (%LOCALAPPDATA%/DDC/config.json)
+      2. Legacy shared-drive config (E:/DDC/tools/agent/config.json)
+         — if found, migrate it to local and remove the shared copy
+    """
+    if os.path.exists(LOCAL_CONFIG_PATH):
+        return LOCAL_CONFIG_PATH
+
+    if os.path.exists(LEGACY_CONFIG_PATH):
+        os.makedirs(LOCAL_DATA_DIR, exist_ok=True)
+        try:
+            with open(LEGACY_CONFIG_PATH, 'r', encoding='utf-8-sig') as f:
+                content = f.read()
+            with open(LOCAL_CONFIG_PATH, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"Migrated config from shared drive to {LOCAL_CONFIG_PATH}")
+        except Exception as e:
+            print(f"Warning: Could not migrate config: {e}")
+            return LEGACY_CONFIG_PATH
+        return LOCAL_CONFIG_PATH
+
+    return LOCAL_CONFIG_PATH
+
+
+CONFIG_PATH = _resolve_config_path()
 
 
 def load_config():
-    """Load agent configuration from config.json."""
+    """Load agent configuration from the local config.json."""
     defaults = {
         'server_url': 'http://127.0.0.1:8000',
         'agent_token': '',
@@ -55,13 +91,17 @@ def load_config():
             defaults.update(loaded)
         except Exception as e:
             print(f"Warning: Could not load config.json: {e}")
+    else:
+        print(f"Warning: No config found at {CONFIG_PATH}")
+        print(f"  Run Fix-Agent.ps1 or Install-EmpAgent.ps1 to create one.")
 
     return defaults
 
 
 def save_config(config):
-    """Save configuration back to config.json."""
-    with open(CONFIG_PATH, 'w') as f:
+    """Save configuration back to the local config.json."""
+    os.makedirs(os.path.dirname(CONFIG_PATH), exist_ok=True)
+    with open(CONFIG_PATH, 'w', encoding='utf-8') as f:
         json.dump(config, f, indent=4)
 
 
@@ -71,7 +111,7 @@ def save_config(config):
 
 def setup_logging(log_level='INFO'):
     """Configure logging for the agent."""
-    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
+    log_dir = os.path.join(LOCAL_DATA_DIR, 'logs')
     os.makedirs(log_dir, exist_ok=True)
 
     log_file = os.path.join(log_dir, 'agent.log')

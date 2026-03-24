@@ -177,8 +177,15 @@ if ($checkStr -match 'DEPS_OK') {
     exit 1
 }
 
-# ── Step 4: Write config ────────────────────────────────────────────────
+# ── Step 4: Write config (LOCAL per-PC, not on shared drive) ────────────
 Write-Step 'Writing agent configuration'
+
+$LocalConfigDir = "$env:LOCALAPPDATA\DDC"
+$LocalConfigPath = "$LocalConfigDir\config.json"
+
+if (-not (Test-Path $LocalConfigDir)) {
+    New-Item -ItemType Directory -Path $LocalConfigDir -Force | Out-Null
+}
 
 $config = @{
     server_url                       = $ServerUrl
@@ -192,9 +199,15 @@ $config = @{
 } | ConvertTo-Json -Depth 2
 
 # Write UTF-8 without BOM (PowerShell 5.1's -Encoding UTF8 adds a BOM that breaks Python json)
-[System.IO.File]::WriteAllText("$InstallDir\config.json", $config, (New-Object System.Text.UTF8Encoding $false))
+[System.IO.File]::WriteAllText($LocalConfigPath, $config, (New-Object System.Text.UTF8Encoding $false))
 
-Write-Ok "Config written (server: $ServerUrl)"
+# Remove any shared-drive config to prevent confusion
+if (Test-Path "$InstallDir\config.json") {
+    Remove-Item "$InstallDir\config.json" -Force -ErrorAction SilentlyContinue
+    Write-Info "Removed shared-drive config.json (now stored locally)"
+}
+
+Write-Ok "Config written to $LocalConfigPath (server: $ServerUrl)"
 
 # ── Step 5: Create scheduled task (runs at user logon) ──────────────────
 Write-Step 'Registering auto-start task'

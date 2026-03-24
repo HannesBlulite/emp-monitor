@@ -136,8 +136,24 @@ if (-not (Test-Path $InstallDir)) {
     exit 1
 }
 
-if (-not (Test-Path "$InstallDir\config.json")) {
-    Write-Fail "No config.json found - agent may not be properly installed."
+# Config is stored locally per-PC (not on the shared drive)
+$LocalConfigDir = "$env:LOCALAPPDATA\DDC"
+$LocalConfigPath = "$LocalConfigDir\config.json"
+$SharedConfigPath = "$InstallDir\config.json"
+
+if ((Test-Path $LocalConfigPath)) {
+    Write-Info "Local config found: $LocalConfigPath"
+} elseif ((Test-Path $SharedConfigPath)) {
+    Write-Info "Migrating config from shared drive to local..."
+    if (-not (Test-Path $LocalConfigDir)) {
+        New-Item -ItemType Directory -Path $LocalConfigDir -Force | Out-Null
+    }
+    Copy-Item $SharedConfigPath $LocalConfigPath -Force
+    Remove-Item $SharedConfigPath -Force -ErrorAction SilentlyContinue
+    Write-Ok "Config migrated to $LocalConfigPath"
+} else {
+    Write-Fail "No config.json found (checked local and shared drive)."
+    Write-Host "    Run Fix-Agent.ps1 to create a config for this PC." -ForegroundColor Yellow
     Pause-BeforeExit
     exit 1
 }
