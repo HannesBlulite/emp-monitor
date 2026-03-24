@@ -13,7 +13,8 @@ from datetime import timedelta, date as date_type, datetime as dt_type, time as 
 from django.contrib.auth.decorators import login_required
 from django.db.models import Sum, Count, Avg, Max, Min, Q
 from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
 from django.utils import timezone
 
 from .models import (
@@ -649,6 +650,16 @@ def settings_view(request):
     settings = AgentSettings.get_settings()
     employees = Employee.objects.all().order_by('display_name')
 
+    action_to_section = {
+        'update_settings': 'agent-config',
+        'add_rule': 'productivity-rules',
+        'edit_rule': 'productivity-rules',
+        'delete_rule': 'productivity-rules',
+        'import_rules': 'productivity-rules',
+        'add_employee': 'employees',
+        'regenerate_token': 'agent-tokens',
+    }
+
     if request.method == 'POST':
         action = request.POST.get('action')
 
@@ -714,7 +725,12 @@ def settings_view(request):
                 AgentToken.objects.filter(employee=emp).delete()
                 AgentToken.objects.create(employee=emp)
 
-    # Reload after POST
+        redirect_section = action_to_section.get(action, '')
+        redirect_url = reverse('monitoring:settings')
+        if redirect_section:
+            redirect_url += '?section=' + redirect_section
+        return redirect(redirect_url)
+
     settings = AgentSettings.get_settings()
 
     # Rules — with search and pagination
@@ -759,6 +775,8 @@ def settings_view(request):
         'apps': ProductivityRule.objects.filter(match_type='app').count(),
     }
 
+    active_section = request.GET.get('section', '')
+
     context = {
         'settings': settings,
         'rules': rules,
@@ -771,6 +789,7 @@ def settings_view(request):
         'page_range': range(max(1, page - 3), min(total_pages + 1, page + 4)),
         'rule_counts': rule_counts,
         'employee_tokens': employee_tokens,
+        'active_section': active_section,
     }
 
     return render(request, 'monitoring/settings.html', context)

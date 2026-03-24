@@ -9,9 +9,65 @@
     <h1>Settings</h1>
 </div>
 
-<div class="settings-grid">
+<!-- Settings Hub Cards -->
+<div class="settings-hub" id="settingsHub">
+    <div class="settings-card" data-section="agent-config">
+        <div class="settings-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+            </svg>
+        </div>
+        <h3 class="settings-card__title">Agent Configuration</h3>
+        <p class="settings-card__desc">Screenshot intervals, activity reporting, idle threshold, and tracking controls.</p>
+    </div>
 
-    <!-- Agent Configuration -->
+    <div class="settings-card" data-section="employees">
+        <div class="settings-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                <path d="M16 3.13a4 4 0 010 7.75"/>
+            </svg>
+        </div>
+        <h3 class="settings-card__title">Employees</h3>
+        <p class="settings-card__desc">Add and manage monitored employees, departments, and PC assignments.</p>
+        <span class="settings-card__badge">{{ employee_tokens|length }} employee{{ employee_tokens|length|pluralize }}</span>
+    </div>
+
+    <div class="settings-card" data-section="agent-tokens">
+        <div class="settings-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0110 0v4"/>
+            </svg>
+        </div>
+        <h3 class="settings-card__title">Agent Tokens</h3>
+        <p class="settings-card__desc">View and regenerate authentication tokens for employee agents.</p>
+        <span class="settings-card__badge">{{ employee_tokens|length }} token{{ employee_tokens|length|pluralize }}</span>
+    </div>
+
+    <div class="settings-card" data-section="productivity-rules">
+        <div class="settings-card__icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 11 12 14 22 4"/>
+                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+            </svg>
+        </div>
+        <h3 class="settings-card__title">Productivity Rules</h3>
+        <p class="settings-card__desc">Define which websites and applications are productive, unproductive, or neutral.</p>
+        <span class="settings-card__badge">{{ rule_counts.total }} rule{{ rule_counts.total|pluralize }}</span>
+    </div>
+</div>
+
+<!-- Section: Agent Configuration -->
+<div class="settings-panel" id="panel-agent-config">
+    <button class="settings-panel__back" onclick="showHub()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Settings
+    </button>
+
     <div class="settings-section">
         <h2>Agent Configuration</h2>
         <form method="post" class="settings-form">
@@ -57,12 +113,18 @@
             <button type="submit" class="btn btn-primary">Save Settings</button>
         </form>
     </div>
+</div>
 
-    <!-- Employee Management -->
+<!-- Section: Employees -->
+<div class="settings-panel" id="panel-employees">
+    <button class="settings-panel__back" onclick="showHub()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Settings
+    </button>
+
     <div class="settings-section">
-        <h2>Employees & Agent Tokens</h2>
+        <h2>Employees</h2>
 
-        <!-- Add Employee Form -->
         <form method="post" class="settings-form add-form">
             {% csrf_token %}
             <input type="hidden" name="action" value="add_employee">
@@ -87,7 +149,51 @@
             <button type="submit" class="btn btn-success">Add Employee</button>
         </form>
 
-        <!-- Employee Token List -->
+        {% if employee_tokens %}
+        <div class="token-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Employee</th>
+                        <th>Department</th>
+                        <th>PC Name</th>
+                        <th>Last Connected</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in employee_tokens %}
+                    <tr>
+                        <td>{{ item.employee.display_name }}</td>
+                        <td>{{ item.employee.department|default:"—" }}</td>
+                        <td>{{ item.employee.pc_name|default:"—" }}</td>
+                        <td>{{ item.last_used|default:"Never" }}</td>
+                        <td>
+                            <span class="status-dot {% if item.last_used %}status-dot--active{% else %}status-dot--inactive{% endif %}"></span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state-sm">
+            <p>No employees added yet. Use the form above to add one.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Section: Agent Tokens -->
+<div class="settings-panel" id="panel-agent-tokens">
+    <button class="settings-panel__back" onclick="showHub()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Settings
+    </button>
+
+    <div class="settings-section">
+        <h2>Agent Tokens</h2>
+
         {% if employee_tokens %}
         <div class="token-table">
             <table>
@@ -111,7 +217,7 @@
                         </td>
                         <td>{{ item.last_used|default:"Never" }}</td>
                         <td>
-                            <form method="post" style="display:inline">
+                            <form method="post" class="inline-form">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="regenerate_token">
                                 <input type="hidden" name="employee_pk" value="{{ item.employee.pk }}">
@@ -126,10 +232,21 @@
                 </tbody>
             </table>
         </div>
+        {% else %}
+        <div class="empty-state-sm">
+            <p>No agent tokens yet. Add employees first in the Employees section.</p>
+        </div>
         {% endif %}
     </div>
+</div>
 
-    <!-- Productivity Rules -->
+<!-- Section: Productivity Rules -->
+<div class="settings-panel" id="panel-productivity-rules">
+    <button class="settings-panel__back" onclick="showHub()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Settings
+    </button>
+
     <div class="settings-section">
         <h2>Productivity Rules</h2>
         <p class="section-desc">
@@ -145,7 +262,7 @@
 
         <!-- Import / Export -->
         <div class="rule-actions-bar">
-            <form method="post" enctype="multipart/form-data" class="import-form" style="display:inline-flex; gap:0.5rem; align-items:center;">
+            <form method="post" enctype="multipart/form-data" class="import-form">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="import_rules">
                 <input type="file" name="csv_file" accept=".csv" required>
@@ -189,6 +306,7 @@
 
         <!-- Search and Filter -->
         <form method="get" class="rule-filter-bar">
+            <input type="hidden" name="section" value="productivity-rules">
             <input type="text" name="rule_search" value="{{ rule_search }}"
                    placeholder="Search rules..." class="rule-search-input">
             <select name="rule_type">
@@ -204,7 +322,7 @@
             </select>
             <button type="submit" class="btn btn-sm btn-primary">Filter</button>
             {% if rule_search or rule_type_filter or rule_category_filter %}
-            <a href="{% url 'monitoring:settings' %}" class="btn btn-sm btn-outline">Clear</a>
+            <a href="{% url 'monitoring:settings' %}?section=productivity-rules" class="btn btn-sm btn-outline">Clear</a>
             {% endif %}
         </form>
 
@@ -217,7 +335,7 @@
             </p>
 
             <!-- Bulk Action Bar -->
-            <div id="bulkActionBar" class="bulk-action-bar" style="display:none;">
+            <div id="bulkActionBar" class="bulk-action-bar bulk-action-bar--hidden">
                 <span id="bulkCount">0</span> rules selected —
                 <button class="btn btn-sm btn-success" onclick="bulkAction('productive')">Set Productive</button>
                 <button class="btn btn-sm btn-warning" onclick="bulkAction('unproductive')">Set Unproductive</button>
@@ -229,7 +347,7 @@
             <table>
                 <thead>
                     <tr>
-                        <th style="width:30px;"><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this.checked)"></th>
+                        <th class="col-checkbox"><input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this.checked)"></th>
                         <th>Type</th>
                         <th>Pattern</th>
                         <th>Category</th>
@@ -256,7 +374,7 @@
                         <td>{{ rule.description|default:"—" }}</td>
                         <td>{{ rule.created_at|date:"d M Y H:i" }}</td>
                         <td class="action-buttons">
-                            <form method="post" style="display:inline">
+                            <form method="post" class="inline-form">
                                 {% csrf_token %}
                                 <input type="hidden" name="action" value="delete_rule">
                                 <input type="hidden" name="rule_id" value="{{ rule.id }}">
@@ -273,17 +391,17 @@
             {% if total_pages > 1 %}
             <div class="pagination">
                 {% if rule_page > 1 %}
-                <a href="?rule_page={{ rule_page|add:"-1" }}&rule_search={{ rule_search }}&rule_type={{ rule_type_filter }}&rule_category={{ rule_category_filter }}"
+                <a href="?section=productivity-rules&rule_page={{ rule_page|add:"-1" }}&rule_search={{ rule_search }}&rule_type={{ rule_type_filter }}&rule_category={{ rule_category_filter }}"
                    class="btn btn-sm btn-outline">&laquo; Prev</a>
                 {% endif %}
 
                 {% for p in page_range %}
-                <a href="?rule_page={{ p }}&rule_search={{ rule_search }}&rule_type={{ rule_type_filter }}&rule_category={{ rule_category_filter }}"
+                <a href="?section=productivity-rules&rule_page={{ p }}&rule_search={{ rule_search }}&rule_type={{ rule_type_filter }}&rule_category={{ rule_category_filter }}"
                    class="btn btn-sm {% if p == rule_page %}btn-primary{% else %}btn-outline{% endif %}">{{ p }}</a>
                 {% endfor %}
 
                 {% if rule_page < total_pages %}
-                <a href="?rule_page={{ rule_page|add:"1" }}&rule_search={{ rule_search }}&rule_type={{ rule_type_filter }}&rule_category={{ rule_category_filter }}"
+                <a href="?section=productivity-rules&rule_page={{ rule_page|add:"1" }}&rule_search={{ rule_search }}&rule_type={{ rule_type_filter }}&rule_category={{ rule_category_filter }}"
                    class="btn btn-sm btn-outline">Next &raquo;</a>
                 {% endif %}
             </div>
@@ -292,7 +410,7 @@
         {% else %}
         <div class="empty-state-sm">
             {% if rule_search or rule_type_filter or rule_category_filter %}
-            <p>No rules match your search. <a href="{% url 'monitoring:settings' %}">Clear filters</a></p>
+            <p>No rules match your search. <a href="{% url 'monitoring:settings' %}?section=productivity-rules">Clear filters</a></p>
             {% else %}
             <p>No productivity rules defined yet. Add some above or import from CSV.</p>
             {% endif %}
@@ -302,7 +420,7 @@
 </div>
 
 <!-- Edit Rule Modal -->
-<div id="editRuleModal" class="edit-modal" style="display:none;">
+<div id="editRuleModal" class="edit-modal edit-modal--hidden">
     <div class="modal-content">
         <h3>Edit Productivity Rule</h3>
         <form method="post" id="editRuleForm">
@@ -343,14 +461,56 @@
 
 {% block extra_scripts %}
 <script>
+var ACTIVE_SECTION = '{{ active_section }}';
+
+function showHub() {
+    document.getElementById('settingsHub').classList.remove('settings-hub--hidden');
+    document.querySelectorAll('.settings-panel').forEach(function(p) {
+        p.classList.remove('settings-panel--visible');
+    });
+    history.pushState(null, '', '{% url "monitoring:settings" %}');
+}
+
+function showSection(sectionId) {
+    document.getElementById('settingsHub').classList.add('settings-hub--hidden');
+    document.querySelectorAll('.settings-panel').forEach(function(p) {
+        p.classList.remove('settings-panel--visible');
+    });
+    var panel = document.getElementById('panel-' + sectionId);
+    if (panel) {
+        panel.classList.add('settings-panel--visible');
+    }
+    history.pushState(null, '', '{% url "monitoring:settings" %}?section=' + sectionId);
+}
+
+document.querySelectorAll('.settings-card').forEach(function(card) {
+    card.addEventListener('click', function() {
+        showSection(this.dataset.section);
+    });
+});
+
+window.addEventListener('popstate', function() {
+    var params = new URLSearchParams(window.location.search);
+    var section = params.get('section');
+    if (section) {
+        showSection(section);
+    } else {
+        showHub();
+    }
+});
+
+if (ACTIVE_SECTION) {
+    showSection(ACTIVE_SECTION);
+}
+
 function copyToken(elementId) {
-    const el = document.getElementById(elementId);
-    const text = el.textContent;
+    var el = document.getElementById(elementId);
+    var text = el.textContent;
     navigator.clipboard.writeText(text).then(function() {
-        const btn = el.nextElementSibling;
-        const orig = btn.textContent;
+        var btn = el.nextElementSibling;
+        var orig = btn.textContent;
         btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = orig, 1500);
+        setTimeout(function() { btn.textContent = orig; }, 1500);
     });
 }
 
@@ -360,26 +520,24 @@ function editRule(id, matchType, pattern, category, description) {
     document.getElementById('edit_pattern').value = pattern;
     document.getElementById('edit_category').value = category;
     document.getElementById('edit_description').value = description;
-    document.getElementById('editRuleModal').style.display = 'flex';
+    document.getElementById('editRuleModal').classList.remove('edit-modal--hidden');
 }
 
 function closeEditModal() {
-    document.getElementById('editRuleModal').style.display = 'none';
+    document.getElementById('editRuleModal').classList.add('edit-modal--hidden');
 }
 
-// Close modal on background click
-const editModal = document.getElementById('editRuleModal');
+var editModal = document.getElementById('editRuleModal');
 if (editModal) {
     editModal.addEventListener('click', function(e) {
         if (e.target === this) closeEditModal();
     });
 }
 
-// ── Inline category editing ────────────────────────────────────────────
 function inlineUpdateCategory(selectEl) {
-    const ruleId = selectEl.dataset.ruleId;
-    const newCategory = selectEl.value;
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    var ruleId = selectEl.dataset.ruleId;
+    var newCategory = selectEl.value;
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
     selectEl.className = 'inline-category-select category-' + newCategory;
 
@@ -391,52 +549,51 @@ function inlineUpdateCategory(selectEl) {
         },
         body: JSON.stringify({rule_id: parseInt(ruleId), category: newCategory}),
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.status !== 'ok') {
             alert('Failed to update: ' + (data.error || 'Unknown error'));
         }
     })
-    .catch(() => alert('Network error — change may not have saved'));
+    .catch(function() { alert('Network error — change may not have saved'); });
 }
 
-// ── Bulk selection ─────────────────────────────────────────────────────
 function getCheckedIds() {
     return Array.from(document.querySelectorAll('.rule-checkbox:checked'))
-        .map(cb => parseInt(cb.value));
+        .map(function(cb) { return parseInt(cb.value); });
 }
 
 function updateBulkBar() {
-    const ids = getCheckedIds();
-    const bar = document.getElementById('bulkActionBar');
-    const count = document.getElementById('bulkCount');
+    var ids = getCheckedIds();
+    var bar = document.getElementById('bulkActionBar');
+    var count = document.getElementById('bulkCount');
     if (ids.length > 0) {
-        bar.style.display = 'flex';
+        bar.classList.remove('bulk-action-bar--hidden');
         count.textContent = ids.length;
     } else {
-        bar.style.display = 'none';
+        bar.classList.add('bulk-action-bar--hidden');
     }
 }
 
 function toggleSelectAll(checked) {
-    document.querySelectorAll('.rule-checkbox').forEach(cb => cb.checked = checked);
-    const selectAll = document.getElementById('selectAllCheckbox');
+    document.querySelectorAll('.rule-checkbox').forEach(function(cb) { cb.checked = checked; });
+    var selectAll = document.getElementById('selectAllCheckbox');
     if (selectAll) selectAll.checked = checked;
     updateBulkBar();
 }
 
 function bulkAction(action) {
-    const ids = getCheckedIds();
+    var ids = getCheckedIds();
     if (!ids.length) return;
 
-    const labels = {productive: 'Productive', unproductive: 'Unproductive', neutral: 'Neutral', delete: 'DELETE'};
-    const msg = action === 'delete'
+    var labels = {productive: 'Productive', unproductive: 'Unproductive', neutral: 'Neutral', delete: 'DELETE'};
+    var msg = action === 'delete'
         ? 'Delete ' + ids.length + ' selected rules? This cannot be undone.'
         : 'Set ' + ids.length + ' selected rules to "' + labels[action] + '"?';
 
     if (!confirm(msg)) return;
 
-    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
 
     fetch('{% url "monitoring:ajax_bulk_rule_action" %}', {
         method: 'POST',
@@ -446,19 +603,19 @@ function bulkAction(action) {
         },
         body: JSON.stringify({rule_ids: ids, action: action}),
     })
-    .then(r => r.json())
-    .then(data => {
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
         if (data.status === 'ok') {
             if (action === 'delete') {
-                ids.forEach(id => {
-                    const row = document.getElementById('rule-row-' + id);
+                ids.forEach(function(id) {
+                    var row = document.getElementById('rule-row-' + id);
                     if (row) row.remove();
                 });
             } else {
-                ids.forEach(id => {
-                    const row = document.getElementById('rule-row-' + id);
+                ids.forEach(function(id) {
+                    var row = document.getElementById('rule-row-' + id);
                     if (row) {
-                        const sel = row.querySelector('.inline-category-select');
+                        var sel = row.querySelector('.inline-category-select');
                         if (sel) {
                             sel.value = action;
                             sel.className = 'inline-category-select category-' + action;
@@ -471,7 +628,7 @@ function bulkAction(action) {
             alert('Error: ' + (data.error || 'Unknown'));
         }
     })
-    .catch(() => alert('Network error'));
+    .catch(function() { alert('Network error'); });
 }
 </script>
 {% endblock %}
