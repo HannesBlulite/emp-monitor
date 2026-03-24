@@ -264,6 +264,7 @@ _VALID_TLDS = frozenset({
     'biz', 'me', 'tv', 'app', 'dev', 'ai', 'cloud', 'online', 'site',
     'tech', 'store', 'shop', 'blog', 'xyz', 'top', 'icu', 'page', 'live',
     'pro', 'jobs', 'mobi', 'name', 'museum', 'travel', 'coop', 'aero',
+    'africa', 'capetown', 'durban', 'joburg', 'eco', 'vet', 'law',
 })
 
 # Country-code second-level domains (e.g. co.za, org.uk)
@@ -280,8 +281,11 @@ def _looks_like_url(text: str) -> bool:
     text = text.strip()
     if not text:
         return False
+    # Reject non-http schemes (chrome-extension://, file://, etc.)
+    if '://' in text and not text.startswith(('http://', 'https://')):
+        return False
     # Has a scheme
-    if text.startswith(('http://', 'https://', 'ftp://')):
+    if text.startswith(('http://', 'https://')):
         return True
     # Reject if it has spaces or looks like a file path
     if ' ' in text or '\\' in text:
@@ -319,19 +323,31 @@ def extract_domain(url_or_domain: str) -> str:
         'https://www.github.com/user/repo' -> 'github.com'
         'mail.google.com' -> 'mail.google.com'
         'https://portal.ddcsa.co.za/login' -> 'portal.ddcsa.co.za'
+        'chrome-extension://xxx/https://site.com/page' -> 'site.com'
     """
     text = url_or_domain.strip()
     if not text:
         return ''
 
+    # Chrome-extension URLs may embed the real URL after the extension ID
+    if text.startswith('chrome-extension://'):
+        match = re.search(r'https?://[^\s]+', text)
+        if match:
+            text = match.group(0)
+        else:
+            return ''
+
+    # Reject other non-http schemes
+    if '://' in text and not text.startswith(('http://', 'https://')):
+        return ''
+
     # Add scheme if missing for urlparse to work
-    if not text.startswith(('http://', 'https://', 'ftp://')):
+    if not text.startswith(('http://', 'https://')):
         text = 'https://' + text
 
     try:
         parsed = urlparse(text)
         hostname = parsed.hostname or ''
-        # Remove 'www.' prefix for matching
         if hostname.startswith('www.'):
             hostname = hostname[4:]
         return hostname.lower()

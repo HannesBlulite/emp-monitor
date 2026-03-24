@@ -202,13 +202,40 @@ def activity_report(request):
             duration_seconds=float(duration),
         )
 
+    # Regex to reject junk that isn't a real domain (compiled once, used below)
+    _JUNK_DOMAIN = re.compile(
+        r'\.pdf$|\.docx?$|\.xlsx?$|\.pptx?$|\.txt$|\.csv$'
+        r'|\.png$|\.jpe?g$|\.gif$|\.bmp$|\.svg$|\.webp$'
+        r'|\.zip$|\.rar$|\.exe$|\.msi$|\.dll$'
+        r'|^[0-9a-f]{8}-[0-9a-f]{4}-'
+        r'|^https?://'
+        r'|^chrome-extension://'
+        r'|\\'
+        r'|^[\d.]+$'
+        r'|^localhost'
+        r'|@'
+        r'|\|'
+        r'|\.namespace\('
+        r'|_[0-9a-f]{4,}_'
+        r'|^.{0,3}$'
+        r'|\s',
+        re.IGNORECASE,
+    )
+
+    def _clean_domain(raw):
+        """Strip junk domains; return cleaned domain or empty string."""
+        if not raw or _JUNK_DOMAIN.search(raw):
+            return ''
+        return raw.strip().lower()
+
     # Save domain usage entries (website time tracked by browsing)
     domain_usage = data.get('domain_usage', {})
     for domain, duration in domain_usage.items():
+        cleaned = _clean_domain(domain)
         AppUsageEntry.objects.create(
             activity_log=activity_log,
             process_name='[website]',
-            domain=domain,
+            domain=cleaned,
             duration_seconds=float(duration),
         )
 
@@ -225,7 +252,7 @@ def activity_report(request):
         except (ValueError, TypeError):
             ts = None
 
-        entry_domain = entry.get('domain', '')
+        entry_domain = _clean_domain(entry.get('domain', ''))
         entry_process = entry.get('process_name', 'unknown')
 
         AppUsageEntry.objects.create(
@@ -244,29 +271,15 @@ def activity_report(request):
 
     # Also collect from app_usage and domain_usage dicts
     for domain in domain_usage:
-        if domain:
-            new_domains.add(domain)
+        cleaned = _clean_domain(domain)
+        if cleaned:
+            new_domains.add(cleaned)
     for process_name in app_usage:
         if process_name and process_name not in ('[website]', 'unknown'):
             new_apps.add(process_name.lower().replace('.exe', ''))
 
     # Auto-create neutral ProductivityRules for newly seen domains and apps
-    _JUNK_DOMAIN = re.compile(
-        r'\.pdf$|\.docx?$|\.xlsx?$|\.pptx?$|\.txt$|\.csv$'
-        r'|\.png$|\.jpe?g$'
-        r'|^[0-9a-f]{8}-[0-9a-f]{4}-'
-        r'|^https?://'
-        r'|\\'
-        r'|^[\d.]+$'
-        r'|@'
-        r'|\|'
-        r'|\.namespace\('
-        r'|_[0-9a-f]{4,}_',
-        re.IGNORECASE,
-    )
     for domain in new_domains:
-        if _JUNK_DOMAIN.search(domain):
-            continue
         ProductivityRule.objects.get_or_create(
             match_type='domain',
             pattern=domain,
