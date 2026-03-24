@@ -28,7 +28,11 @@ $files = @(
     'requirements-agent.txt',
     'Install-EmpAgent.ps1',
     'Uninstall-EmpAgent.ps1',
-    'Update-DDCTools.ps1'
+    'Update-DDCTools.ps1',
+    'Setup-Agent.ps1',
+    'Fix-Agent.ps1',
+    'Load-EnvConfig.ps1',
+    '.env'
 )
 
 # Create output directory

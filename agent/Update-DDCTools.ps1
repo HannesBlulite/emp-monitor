@@ -12,7 +12,7 @@
       5. Reinstall Python dependencies if requirements changed
       6. Restart the agent task
 
-    No admin privileges required for normal updates.
+    All configuration is loaded from the .env file on the shared drive.
 
 .EXAMPLE
     Double-click or right-click > Run with PowerShell
@@ -22,7 +22,6 @@
 $identity  = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    # Convert mapped-drive path to UNC so the elevated session can find the script
     $elevatedPath = $PSCommandPath
     if ($elevatedPath -match '^([A-Z]):\\') {
         $driveLetter = $Matches[1]
@@ -36,20 +35,46 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
     exit
 }
 
+# ── Load .env configuration ─────────────────────────────────────────────
+# Load-EnvConfig.ps1 may be in the same folder, or in the agent dir
+$_loaderCandidates = @(
+    (Join-Path $PSScriptRoot 'Load-EnvConfig.ps1'),
+    (Join-Path (Split-Path $PSScriptRoot) 'agent\Load-EnvConfig.ps1'),
+    'E:\DDC\tools\agent\Load-EnvConfig.ps1',
+    '\\10.147.17.115\EDrive\DDC\tools\agent\Load-EnvConfig.ps1',
+    '\\DDCSERVER-PC\EDrive\DDC\tools\agent\Load-EnvConfig.ps1'
+)
+$_loaderFound = $false
+foreach ($_loader in $_loaderCandidates) {
+    if (Test-Path $_loader) {
+        . $_loader
+        $_loaderFound = $true
+        break
+    }
+}
+
+if (-not $_loaderFound) {
+    Write-Host '[WARN] Load-EnvConfig.ps1 not found. Using hardcoded defaults.' -ForegroundColor Yellow
+    $ServerUrl  = 'https://ddcemp.co.za'
+    $SharePaths = @('\\DDCSERVER-PC\EDrive', '\\10.147.17.115\EDrive')
+    $AgentDir   = 'E:\DDC\tools\agent'
+    $TaskName   = 'EmpMonitorAgent'
+    $LocalDataDir = "$env:LOCALAPPDATA\DDC"
+    $LocalConfig  = "$LocalDataDir\config.json"
+    $VenvDir      = "$LocalDataDir\agent-venv"
+}
+
 # ── Configuration ────────────────────────────────────────────────────────
 $PackageName   = 'empmonitor-agent.zip'
-$TaskName      = 'EmpMonitorAgent'
-$UncBase       = '\\10.147.17.115\EDrive'
+$UncBase       = if ($SharePaths.Count -gt 0) { $SharePaths[0] } else { '\\10.147.17.115\EDrive' }
 
-# Possible locations for the update package (tried in order)
-$SearchPaths = @(
-    $PSScriptRoot,                                    # Same folder as this script
-    "$UncBase\DDC\tools\updates",                     # UNC path (works in admin sessions)
-    'E:\DDC\tools\updates'                            # Mapped drive (fallback)
-)
+$SearchPaths = @($PSScriptRoot)
+foreach ($share in $SharePaths) {
+    $SearchPaths += "$share\DDC\tools\updates"
+}
+$SearchPaths += 'E:\DDC\tools\updates'
 
-# Files that must NEVER be overwritten (employee-specific config)
-$ProtectedFiles = @('config.json')
+$ProtectedFiles = @('config.json', '.env')
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -60,12 +85,14 @@ function Write-Fail($msg)    { Write-Host "    [FAIL] $msg" -ForegroundColor Red
 function Write-Info($msg)    { Write-Host "    $msg" -ForegroundColor Gray }
 
 # ── Resolve install directory ────────────────────────────────────────────
-# Admin-elevated sessions often lose mapped drives (E:), so prefer UNC directly.
-# The E: drive path is only used for the scheduled task (runs as normal user).
 $InstallDir = $null
-if (Test-Path "$UncBase\DDC\tools\agent") {
-    $InstallDir = "$UncBase\DDC\tools\agent"
-} elseif (Test-Path 'E:\DDC\tools\agent') {
+foreach ($share in $SharePaths) {
+    if (Test-Path "$share\DDC\tools\agent") {
+        $InstallDir = "$share\DDC\tools\agent"
+        break
+    }
+}
+if (-not $InstallDir -and (Test-Path 'E:\DDC\tools\agent')) {
     $InstallDir = 'E:\DDC\tools\agent'
 }
 
@@ -98,12 +125,14 @@ foreach ($folder in $SearchPaths) {
 }
 
 if (-not $PackagePath) {
-    # Last resort: try to reconnect the network share
     Write-Info 'Attempting network reconnection...'
-    net use '\\10.147.17.115\EDrive' 2>&1 | Out-Null
-    $candidate = '\\10.147.17.115\EDrive\DDC\tools\updates\' + $PackageName
-    if (Test-Path $candidate) {
-        $PackagePath = $candidate
+    foreach ($share in $SharePaths) {
+        net use $share 2>&1 | Out-Null
+        $candidate = "$share\DDC\tools\updates\$PackageName"
+        if (Test-Path $candidate) {
+            $PackagePath = $candidate
+            break
+        }
     }
 }
 
@@ -131,34 +160,31 @@ Write-Info "Install directory: $InstallDir"
 
 if (-not (Test-Path $InstallDir)) {
     Write-Fail "Agent not installed at $InstallDir"
-    Write-Host '    Run the full installer first (Install-EmpAgent.ps1).' -ForegroundColor Yellow
+    Write-Host '    Run Setup-Agent.ps1 for first-time installation.' -ForegroundColor Yellow
     Pause-BeforeExit
     exit 1
 }
 
-# Config is stored locally per-PC (not on the shared drive)
-$LocalConfigDir = "$env:LOCALAPPDATA\DDC"
-$LocalConfigPath = "$LocalConfigDir\config.json"
+$LocalConfigPath = $LocalConfig
 $SharedConfigPath = "$InstallDir\config.json"
 
 if ((Test-Path $LocalConfigPath)) {
     Write-Info "Local config found: $LocalConfigPath"
 } elseif ((Test-Path $SharedConfigPath)) {
     Write-Info "Migrating config from shared drive to local..."
-    if (-not (Test-Path $LocalConfigDir)) {
-        New-Item -ItemType Directory -Path $LocalConfigDir -Force | Out-Null
+    if (-not (Test-Path $LocalDataDir)) {
+        New-Item -ItemType Directory -Path $LocalDataDir -Force | Out-Null
     }
     Copy-Item $SharedConfigPath $LocalConfigPath -Force
     Remove-Item $SharedConfigPath -Force -ErrorAction SilentlyContinue
     Write-Ok "Config migrated to $LocalConfigPath"
 } else {
     Write-Fail "No config.json found (checked local and shared drive)."
-    Write-Host "    Run Fix-Agent.ps1 to create a config for this PC." -ForegroundColor Yellow
+    Write-Host "    Run Setup-Agent.ps1 or Fix-Agent.ps1 to create a config for this PC." -ForegroundColor Yellow
     Pause-BeforeExit
     exit 1
 }
 
-# Read current version if available
 $currentVersion = 'unknown'
 if (Test-Path "$InstallDir\version.py") {
     $verContent = Get-Content "$InstallDir\version.py" -Raw
@@ -180,9 +206,8 @@ if ($task -and $task.State -eq 'Running') {
     Write-Info 'Agent was not running'
 }
 
-# Also kill any lingering pythonw processes running the agent
 $agentProcesses = Get-WmiObject Win32_Process -Filter "Name='pythonw.exe'" -ErrorAction SilentlyContinue |
-    Where-Object { $_.CommandLine -like "*$InstallDir*" }
+    Where-Object { $_.CommandLine -like "*$InstallDir*" -or $_.CommandLine -like '*main.py*' }
 foreach ($proc in $agentProcesses) {
     try { $proc.Terminate() | Out-Null } catch {}
 }
@@ -190,14 +215,12 @@ foreach ($proc in $agentProcesses) {
 # ── Step 4: Back up current agent ───────────────────────────────────────
 Write-Step 'Backing up current agent'
 
-# Use a LOCAL temp folder for backup (avoids slow network I/O on mapped drives)
 $backupDir = Join-Path $env:TEMP 'ddc-agent-backup'
 if (Test-Path $backupDir) {
     Remove-Item $backupDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
 
-# Back up only the .py, .txt, .json, .ps1 files (not venv, not __pycache__)
 Get-ChildItem $InstallDir -File -ErrorAction SilentlyContinue | Where-Object {
     $_.Extension -in @('.py', '.txt', '.json', '.ps1')
 } | ForEach-Object {
@@ -214,17 +237,14 @@ $tempDir = Join-Path $env:TEMP "ddc-agent-update-$(Get-Date -Format 'yyyyMMdd-HH
 New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
 try {
-    # Copy ZIP locally first (faster than extracting over network)
     $localZip = Join-Path $tempDir $PackageName
     Copy-Item $PackagePath $localZip
     Write-Info 'Package copied locally'
 
-    # Extract
     $extractDir = Join-Path $tempDir 'extracted'
     Expand-Archive -Path $localZip -DestinationPath $extractDir -Force
     Write-Info 'Package extracted'
 
-    # Copy files to install directory, skipping protected files
     $updatedFiles = @()
     $skippedFiles = @()
 
@@ -242,7 +262,6 @@ try {
         Write-Info "Protected (not overwritten): $($skippedFiles -join ', ')"
     }
 
-    # Read new version
     $newVersion = 'unknown'
     if (Test-Path "$InstallDir\version.py") {
         $verContent = Get-Content "$InstallDir\version.py" -Raw
@@ -256,44 +275,42 @@ try {
     Write-Fail "Update failed: $_"
     Write-Host '    Restoring from backup...' -ForegroundColor Yellow
 
-    # Restore backup
     Get-ChildItem $backupDir -File | ForEach-Object {
         Copy-Item $_.FullName (Join-Path $InstallDir $_.Name) -Force
     }
     Write-Ok 'Backup restored'
 
-    # Cleanup temp
     Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 
     Pause-BeforeExit
     exit 1
 } finally {
-    # Cleanup temp dir
     Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 # ── Step 6: Ensure venv exists and update Python dependencies ────────────
 Write-Step 'Checking Python environment'
 
-# Venv lives LOCALLY on each PC (not on the network share) to avoid lock issues
-$LocalAgentDir = "$env:LOCALAPPDATA\DDC\agent-venv"
+$LocalAgentDir = $VenvDir
 if (-not (Test-Path $LocalAgentDir)) {
-    New-Item -ItemType Directory -Path $LocalAgentDir -Force | Out-Null
+    New-Item -ItemType Directory -Path (Split-Path $LocalAgentDir) -Force | Out-Null
 }
-$VenvDir     = $LocalAgentDir
 $VenvPython  = "$VenvDir\Scripts\python.exe"
 $VenvPip     = "$VenvDir\Scripts\pip.exe"
 $ReqFile     = "$InstallDir\requirements-agent.txt"
 
-# Clean up old network-share venv if it exists (may fail if locked — that's OK)
 $OldNetVenv = "$InstallDir\venv"
 if (Test-Path $OldNetVenv) {
     Write-Info 'Removing old network-share venv (now using local venv)...'
     Remove-Item $OldNetVenv -Recurse -Force -ErrorAction SilentlyContinue
 }
-$PythonMinVer = [version]'3.10'
 
-# Check if venv is complete (both python.exe AND pip.exe must exist)
+$PythonMinVer = if ($EnvConfig -and $EnvConfig.ContainsKey('PYTHON_MIN_VERSION')) {
+    [version]$EnvConfig['PYTHON_MIN_VERSION']
+} else {
+    [version]'3.10'
+}
+
 $venvValid = (Test-Path "$VenvDir\Scripts\python.exe") -and (Test-Path "$VenvDir\Scripts\pip.exe")
 
 if (-not $venvValid) {
@@ -303,7 +320,6 @@ if (-not $venvValid) {
     }
     Write-Info 'Creating virtual environment...'
 
-    # Find a system Python
     $candidates = @(
         (Get-Command python -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
         (Get-Command python3 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue),
@@ -331,7 +347,6 @@ if (-not $venvValid) {
     if ($PythonExe) {
         Write-Info "Found Python: $PythonExe"
 
-        # Create venv in LOCAL temp first (ensurepip fails on UNC/network paths)
         $localVenv = Join-Path $env:TEMP 'ddc-agent-venv'
         if (Test-Path $localVenv) { Remove-Item $localVenv -Recurse -Force }
 
@@ -339,7 +354,6 @@ if (-not $venvValid) {
         & $PythonExe -m venv $localVenv 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
 
         if (Test-Path "$localVenv\Scripts\python.exe") {
-            # Move local temp venv to permanent local dir
             Write-Info 'Moving venv to local directory...'
             if (Test-Path $VenvDir) { Remove-Item $VenvDir -Recurse -Force }
             Copy-Item $localVenv $VenvDir -Recurse -Force
@@ -358,7 +372,6 @@ if (-not $venvValid) {
 if ((Test-Path $VenvPython) -and (Test-Path $ReqFile)) {
     Write-Info 'Installing dependencies (this may take a moment)...'
 
-    # Upgrade pip first (don't suppress output so we can see errors)
     $ErrorActionPreference = 'Continue'
     & $VenvPython -m pip install --upgrade pip 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
     & $VenvPython -m pip install -r $ReqFile 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
@@ -369,7 +382,6 @@ if ((Test-Path $VenvPython) -and (Test-Path $ReqFile)) {
         Write-Fail "pip install failed (exit code $pipExit)"
     }
 
-    # Always verify by actually importing - this is the only check that matters
     $checkOutput = & $VenvPython -c "import mss; import requests; import PIL; print('DEPS_OK')" 2>&1
     $checkStr = ($checkOutput | Out-String).Trim()
     if ($checkStr -match 'DEPS_OK') {
@@ -379,7 +391,6 @@ if ((Test-Path $VenvPython) -and (Test-Path $ReqFile)) {
         Write-Host "    $checkStr" -ForegroundColor Red
         Write-Info 'Attempting reinstall...'
         & $VenvPython -m pip install --force-reinstall -r $ReqFile 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
-        # Final verification
         $recheck = & $VenvPython -c "import mss; import requests; import PIL; print('DEPS_OK')" 2>&1
         $recheckStr = ($recheck | Out-String).Trim()
         if ($recheckStr -match 'DEPS_OK') {
@@ -393,7 +404,6 @@ if ((Test-Path $VenvPython) -and (Test-Path $ReqFile)) {
     Write-Fail 'Python not found in venv - venv creation may have failed.'
 }
 
-# Clear __pycache__
 $pycache = "$InstallDir\__pycache__"
 if (Test-Path $pycache) {
     Remove-Item $pycache -Recurse -Force -ErrorAction SilentlyContinue
@@ -403,16 +413,13 @@ if (Test-Path $pycache) {
 # ── Step 7: Re-register and start the agent task ────────────────────────
 Write-Step 'Registering scheduled task (with watchdog)'
 
-# Task runs as normal user who has E: mapped — always use drive letter path
-$TaskDir  = 'E:\DDC\tools\agent'
-# Venv is local (not on network share)
-$LocalVenvDir = "$env:LOCALAPPDATA\DDC\agent-venv"
+$TaskDir     = $AgentDir
+$LocalVenvDir = $VenvDir
 
 if (-not (Test-Path "$LocalVenvDir\Scripts\pythonw.exe")) {
     Write-Fail "Cannot find pythonw.exe in venv - venv may be broken."
-    Write-Host '    Agent will not auto-start. A full reinstall may be needed.' -ForegroundColor Yellow
+    Write-Host '    Agent will not auto-start. Run Setup-Agent.ps1 for a full reinstall.' -ForegroundColor Yellow
 } else {
-    # Remove old task
     Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
 
     $action = New-ScheduledTaskAction `
@@ -448,7 +455,6 @@ if (-not (Test-Path "$LocalVenvDir\Scripts\pythonw.exe")) {
 
     $task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
     if ($task -and $task.State -eq 'Running') {
-        # Double-check the process is actually alive
         $proc = Get-Process pythonw -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*agent-venv*" }
         if ($proc) {
             Write-Ok "Agent started and running (PID: $($proc.Id))"
@@ -472,28 +478,38 @@ if (-not (Test-Path "$LocalVenvDir\Scripts\pythonw.exe")) {
     Write-Info 'Triggers: AtLogOn + Repeat every 15 min (watchdog)'
 }
 
-# ── Step 8: Create/update desktop shortcut (always refresh to ensure admin flag) ──
+# ── Step 8: Create/update desktop shortcut ───────────────────────────────
 $desktopPath = [Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktopPath 'Update DDC Tools.lnk'
 
 Write-Step 'Setting up desktop shortcut'
 
-    $scriptPath = '\\10.147.17.115\EDrive\DDC\tools\updates\Update-DDCTools.ps1'
-    $ws = New-Object -ComObject WScript.Shell
-    $shortcut = $ws.CreateShortcut($shortcutPath)
-    $shortcut.TargetPath = 'powershell.exe'
-    $shortcut.Arguments = "-ExecutionPolicy Bypass -File `"$scriptPath`""
-    $shortcut.WorkingDirectory = '\\10.147.17.115\EDrive\DDC\tools\updates'
-    $shortcut.Description = 'Update DDC Tools (EMP Monitor Agent)'
-    $shortcut.Save()
+$updateScript = $null
+foreach ($share in $SharePaths) {
+    $candidate = "$share\DDC\tools\updates\Update-DDCTools.ps1"
+    if (Test-Path $candidate) {
+        $updateScript = $candidate
+        break
+    }
+}
+if (-not $updateScript) {
+    $updateScript = 'E:\DDC\tools\updates\Update-DDCTools.ps1'
+}
 
-    # Set "Run as Administrator" flag on the shortcut
-    $bytes = [System.IO.File]::ReadAllBytes($shortcutPath)
-    $bytes[0x15] = $bytes[0x15] -bor 0x20
-    [System.IO.File]::WriteAllBytes($shortcutPath, $bytes)
+$ws = New-Object -ComObject WScript.Shell
+$shortcut = $ws.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = 'powershell.exe'
+$shortcut.Arguments = "-ExecutionPolicy Bypass -File `"$updateScript`""
+$shortcut.WorkingDirectory = Split-Path $updateScript
+$shortcut.Description = 'Update DDC Tools (EMP Monitor Agent)'
+$shortcut.Save()
 
-    Write-Ok "Shortcut created on Desktop: 'Update DDC Tools' (runs as admin)"
-    Write-Info 'Next time, just double-click the shortcut.'
+$bytes = [System.IO.File]::ReadAllBytes($shortcutPath)
+$bytes[0x15] = $bytes[0x15] -bor 0x20
+[System.IO.File]::WriteAllBytes($shortcutPath, $bytes)
+
+Write-Ok "Shortcut created on Desktop: 'Update DDC Tools' (runs as admin)"
+Write-Info 'Next time, just double-click the shortcut.'
 
 # ── Done ─────────────────────────────────────────────────────────────────
 Write-Host ''

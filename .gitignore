@@ -49,6 +49,7 @@ agent/test_screenshots/
 # IDE files
 .idea/
 .vscode/
+.cursor/
 *.swp
 *.swo
 
@@ -61,7 +62,7 @@ DEPLOYMENT_NOTES.local.md
 
 # MacOS
 .DS_Store
-image/README/1773799501097.png
-image/README/1773799555160.png
-image/README/1773799572535.png
+
+# Misc
+image/
 Productivity Rule (1).xlsx

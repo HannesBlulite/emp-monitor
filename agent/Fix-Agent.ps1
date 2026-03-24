@@ -6,9 +6,10 @@
 .DESCRIPTION
     Run this as Administrator on each staff PC.
     It will auto-detect the employee from the existing config, or you can specify one.
+    All configuration is loaded from the .env file on the shared drive.
 
 .PARAMETER Employee
-    Employee name: danita, janelda, jeandri, lizelle, monique, nicole, hannes
+    Employee name (must match a TOKEN_<name> entry in .env).
 
 .EXAMPLE
     .\Fix-Agent.ps1 -Employee danita
@@ -21,29 +22,17 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# ═══ Configuration ═══════════════════════════════════════════════════════
-$AgentDir       = 'E:\DDC\tools\agent'
-$LocalConfigDir = "$env:LOCALAPPDATA\DDC"
-$ConfigPath     = "$LocalConfigDir\config.json"
-$LegacyConfig   = "$AgentDir\config.json"
-$TaskName       = 'EmpMonitorAgent'
-$ServerUrl      = 'https://ddcemp.co.za'
+# ── Load .env configuration ─────────────────────────────────────────────
+. "$PSScriptRoot\Load-EnvConfig.ps1"
 
-# Employee token map (from production database)
-$Tokens = @{
-    'hannes'  = '57ec45bcb6c3bab3f789e2167997662b8aca0853775d7f44371e7bbf7bfec6a2'
-    'danita'  = '8429a776498257c1b0913080b4847ce6226f3061866cc5f298a75420bfb914a6'
-    'janelda' = 'd227b36070d2bdf2d85cc41e869a5bbdf6f2a519d2a38c9754f88977ee463abc'
-    'jeandri' = '4f97e3f9f2c04b36d466c88aa29e4de9ad4775accefb3e6b325ba53f006d2c9d'
-    'lizelle' = 'e55c692b08c1a58e5eb98962a648824d7a19cee39651d1425dd9f0b76fb87de4'
-    'monique' = '4cc5908c6c7863b3c7d0b2174e29e6ce2f250717db617c1e6c93e60c2b3c43a4'
-    'nicole'  = 'f5456d42c61c23bf9fe79513116ef356eefccde5c0e659f8312505e39a0283c7'
-}
+$LegacyConfig = "$AgentDir\config.json"
+$ConfigPath   = $LocalConfig
 
 # Network share paths to try for latest main.py
-$SharePaths = @(
-    '\\10.147.17.115\EDrive\DDC\tools\agent\main.py'
-)
+$MainPySources = @()
+foreach ($share in $SharePaths) {
+    $MainPySources += "$share\DDC\tools\agent\main.py"
+}
 
 # ═══ Helpers ═════════════════════════════════════════════════════════════
 function Write-Step($msg)  { Write-Host "`n>>> $msg" -ForegroundColor Cyan }
@@ -73,7 +62,7 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 Write-Step "Checking agent installation"
 if (-not (Test-Path $AgentDir)) {
     Write-Fail "Agent directory not found: $AgentDir"
-    Write-Host "    The agent is not installed on this PC. Run Install-EmpAgent.ps1 instead." -ForegroundColor Yellow
+    Write-Host "    The agent is not installed on this PC. Run Setup-Agent.ps1 instead." -ForegroundColor Yellow
     pause
     exit 1
 }
@@ -83,7 +72,6 @@ Write-Ok "Agent directory: $AgentDir"
 Write-Step "Identifying employee"
 
 if ($Employee -eq '') {
-    # Try to auto-detect from local config first, then legacy shared-drive config
     $configsToTry = @($ConfigPath, $LegacyConfig)
     foreach ($cfgPath in $configsToTry) {
         if ($Employee -ne '') { break }
@@ -115,10 +103,16 @@ if ($Employee -eq '') {
 }
 
 if ($Employee -eq '') {
+    if ($Tokens.Count -eq 0) {
+        Write-Fail "No employee tokens found in .env file."
+        pause
+        exit 1
+    }
+
     Write-Host ""
     Write-Host "    Could not auto-detect employee. Please choose:" -ForegroundColor Yellow
     Write-Host ""
-    $names = @('danita', 'janelda', 'jeandri', 'lizelle', 'monique', 'nicole', 'hannes')
+    $names = @($Tokens.Keys | Sort-Object)
     for ($i = 0; $i -lt $names.Count; $i++) {
         Write-Host "      [$($i+1)] $($names[$i])" -ForegroundColor White
     }
@@ -136,7 +130,8 @@ if ($Employee -eq '') {
 $Employee = $Employee.ToLower()
 if (-not $Tokens.ContainsKey($Employee)) {
     Write-Fail "Unknown employee: $Employee"
-    Write-Host "    Valid names: $($Tokens.Keys -join ', ')" -ForegroundColor Yellow
+    Write-Host "    Available: $($Tokens.Keys -join ', ')" -ForegroundColor Yellow
+    Write-Host "    Add TOKEN_$Employee=<token> to .env to register this employee." -ForegroundColor Yellow
     pause
     exit 1
 }
@@ -158,7 +153,6 @@ if ($task -and $task.State -eq 'Running') {
     Write-Warn "Scheduled task '$TaskName' not found"
 }
 
-# Also kill any stray pythonw processes running main.py
 Get-Process pythonw -ErrorAction SilentlyContinue | ForEach-Object {
     try {
         $cmdLine = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)").CommandLine
@@ -172,7 +166,7 @@ Get-Process pythonw -ErrorAction SilentlyContinue | ForEach-Object {
 # ── Step 5: Copy latest main.py from share ──────────────────────────────
 Write-Step "Updating main.py"
 $copied = $false
-foreach ($src in $SharePaths) {
+foreach ($src in $MainPySources) {
     if (Test-Path $src) {
         try {
             Copy-Item $src "$AgentDir\main.py" -Force
@@ -181,7 +175,7 @@ foreach ($src in $SharePaths) {
         } catch {
             Write-Warn "Could not overwrite main.py (file in use). Skipping file copy..."
             Write-Info "The agent will use the existing main.py (but we will still fix config.json)."
-            $copied = $true # Mark as 'handled' so we don't show the reachability error
+            $copied = $true
         }
         break
     }
@@ -194,32 +188,29 @@ if (-not $copied) {
 # ── Step 6: Fix config.json (LOCAL per-PC, BOM-free, correct token) ─────
 Write-Step "Writing config.json to local PC"
 
-if (-not (Test-Path $LocalConfigDir)) {
-    New-Item -ItemType Directory -Path $LocalConfigDir -Force | Out-Null
+if (-not (Test-Path $LocalDataDir)) {
+    New-Item -ItemType Directory -Path $LocalDataDir -Force | Out-Null
 }
 
 $config = @{
     server_url                       = $ServerUrl
     agent_token                      = $Token
-    screenshot_interval_seconds      = 300
-    activity_report_interval_seconds = 60
-    screenshot_quality               = 60
-    screenshot_format                = 'JPEG'
-    idle_threshold_seconds           = 120
-    log_level                        = 'INFO'
+    screenshot_interval_seconds      = $AgentSettings['screenshot_interval_seconds']
+    activity_report_interval_seconds = $AgentSettings['activity_report_interval_seconds']
+    screenshot_quality               = $AgentSettings['screenshot_quality']
+    screenshot_format                = $AgentSettings['screenshot_format']
+    idle_threshold_seconds           = $AgentSettings['idle_threshold_seconds']
+    log_level                        = $AgentSettings['log_level']
 } | ConvertTo-Json -Depth 2
 
-# Write WITHOUT BOM
 [System.IO.File]::WriteAllText($ConfigPath, $config, (New-Object System.Text.UTF8Encoding $false))
 Write-Ok "Config written to $ConfigPath"
 
-# Remove any shared-drive config to prevent confusion
 if (Test-Path $LegacyConfig) {
     Remove-Item $LegacyConfig -Force -ErrorAction SilentlyContinue
     Write-Info "Removed shared-drive config.json (now stored locally)"
 }
 
-# Verify no BOM
 $verifyBytes = [System.IO.File]::ReadAllBytes($ConfigPath)
 if ($verifyBytes[0] -eq 0xEF -and $verifyBytes[1] -eq 0xBB) {
     Write-Fail "BOM still present! Something went wrong."
@@ -230,14 +221,13 @@ Write-Ok "Verified: no BOM in config.json"
 
 # ── Step 7: Check venv exists ────────────────────────────────────────────
 Write-Step "Checking Python venv"
-$VenvDir = "$env:LOCALAPPDATA\DDC\agent-venv"
 $VenvPythonw = "$VenvDir\Scripts\pythonw.exe"
 
 if (Test-Path $VenvPythonw) {
     Write-Ok "Venv found: $VenvDir"
 } else {
     Write-Warn "Venv not found at $VenvDir"
-    Write-Info "The agent task may fail. Consider running Update-DDCTools.ps1 to rebuild the venv."
+    Write-Info "The agent task may fail. Consider running Setup-Agent.ps1 or Update-DDCTools.ps1 to rebuild the venv."
 }
 
 # ── Step 8: Start the agent ─────────────────────────────────────────────
@@ -252,12 +242,12 @@ if ($task) {
         Write-Warn "Task state: $($taskAfter.State) (may still be starting)"
     }
 } else {
-    Write-Warn "No scheduled task found. You may need to run Install-EmpAgent.ps1 first."
+    Write-Warn "No scheduled task found. Run Setup-Agent.ps1 to create one."
 }
 
 # ── Step 9: Quick verification ──────────────────────────────────────────
 Write-Step "Verification"
-$logDir = "$LocalConfigDir\logs"
+$logDir = "$LocalDataDir\logs"
 $logFile = Join-Path $logDir "agent.log"
 if (Test-Path $logFile) {
     Write-Info "Latest log entries:"
