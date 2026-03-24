@@ -12,10 +12,10 @@ from .models import (
 
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
-    list_display = ['display_name', 'employee_id', 'email', 'department', 'pc_name', 'last_ip', 'agent_version', 'is_active', 'created_at']
+    list_display = ['display_name', 'employee_id', 'department', 'pc_name', 'local_ip', 'agent_version', 'is_active', 'created_at']
     list_filter = ['is_active', 'department']
     search_fields = ['display_name', 'employee_id', 'pc_name', 'email']
-    readonly_fields = ['last_ip', 'agent_version']
+    readonly_fields = ['last_ip', 'local_ip', 'agent_version']
 
 
 @admin.register(AgentToken)

@@ -7,6 +7,8 @@ Includes screenshot upload, activity reporting, and settings retrieval.
 import json
 import logging
 import os
+import platform
+import socket
 import time
 from datetime import datetime
 
@@ -34,11 +36,25 @@ class ServerCommunicator:
             'Authorization': f'Token {agent_token}',
             'User-Agent': f'EmpMonitorAgent/{AGENT_VERSION}',
             'X-Agent-Version': AGENT_VERSION,
+            'X-Agent-Hostname': platform.node(),
+            'X-Agent-Local-IP': self._get_local_ip(),
         })
         self._queue_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), 'upload_queue'
         )
         os.makedirs(self._queue_dir, exist_ok=True)
+
+    @staticmethod
+    def _get_local_ip():
+        """Get the primary local IP by connecting to an external address (no data sent)."""
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            ip = s.getsockname()[0]
+            s.close()
+            return ip
+        except Exception:
+            return '0.0.0.0'
 
     def upload_screenshot(self, monitor_index, image_bytes, width, height, timestamp):
         """

@@ -66,10 +66,20 @@ def authenticate_agent(request):
                 employee.last_ip = client_ip
                 update_fields.append('last_ip')
 
+            local_ip = request.META.get('HTTP_X_AGENT_LOCAL_IP', '')
+            if local_ip and local_ip != '0.0.0.0' and employee.local_ip != local_ip:
+                employee.local_ip = local_ip
+                update_fields.append('local_ip')
+
             agent_ver = request.META.get('HTTP_X_AGENT_VERSION', '')
             if agent_ver and employee.agent_version != agent_ver:
                 employee.agent_version = agent_ver
                 update_fields.append('agent_version')
+
+            hostname = request.META.get('HTTP_X_AGENT_HOSTNAME', '')
+            if hostname and employee.pc_name != hostname:
+                employee.pc_name = hostname
+                update_fields.append('pc_name')
 
             if update_fields:
                 employee.save(update_fields=update_fields)

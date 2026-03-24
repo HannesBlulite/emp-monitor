@@ -83,9 +83,9 @@
                     Never connected
                 {% endif %}
             </span>
-            {% if item.employee.last_ip %}
-            <span class="agent-info" title="IP: {{ item.employee.last_ip }}{% if item.employee.agent_version %} | Agent v{{ item.employee.agent_version }}{% endif %}">
-                {{ item.employee.last_ip }}{% if item.employee.agent_version %} &middot; v{{ item.employee.agent_version }}{% endif %}
+            {% if item.employee.local_ip or item.employee.last_ip %}
+            <span class="agent-info" title="LAN: {{ item.employee.local_ip|default:'?' }} | WAN: {{ item.employee.last_ip|default:'?' }}{% if item.employee.agent_version %} | Agent v{{ item.employee.agent_version }}{% endif %}">
+                {{ item.employee.local_ip|default:item.employee.last_ip }}{% if item.employee.agent_version %} &middot; v{{ item.employee.agent_version }}{% endif %}
             </span>
             {% endif %}
             <div class="card-footer-actions">
