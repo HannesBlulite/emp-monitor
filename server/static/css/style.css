@@ -284,8 +284,8 @@ a:hover {
 /* --- Employee Grid (Dashboard) --- */
 .employee-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: var(--space-md);
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: var(--space-lg);
 }
 
 .employee-card {
@@ -315,7 +315,7 @@ a:hover {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    padding: var(--space-sm) var(--space-sm) var(--space-xs);
+    padding: var(--space-md) var(--space-md) var(--space-sm);
 }
 
 .employee-info {
@@ -375,7 +375,7 @@ a:hover {
 .card-metrics {
     display: flex;
     justify-content: space-around;
-    padding: var(--space-xs) var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
     border-top: 1px solid var(--color-border-subtle);
     border-bottom: 1px solid var(--color-border-subtle);
 }
@@ -386,7 +386,7 @@ a:hover {
 
 .metric-value {
     display: block;
-    font-size: var(--font-size-base);
+    font-size: var(--font-size-md);
     font-weight: 700;
     color: var(--color-text);
 }
@@ -402,7 +402,7 @@ a:hover {
 /* --- Card Preview (Screenshot Thumbnail) --- */
 .card-preview {
     position: relative;
-    height: 100px;
+    height: 160px;
     overflow: hidden;
     background: var(--color-bg);
 }
@@ -444,7 +444,7 @@ a:hover {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-xs) var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
 }
 
 .card-footer-actions {
