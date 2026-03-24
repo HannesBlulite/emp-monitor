@@ -12,6 +12,8 @@ from datetime import datetime
 
 import requests
 
+from version import AGENT_VERSION
+
 logger = logging.getLogger('emp_agent.server_comm')
 
 # Timeout for HTTP requests (seconds)
@@ -30,7 +32,8 @@ class ServerCommunicator:
         self.session = requests.Session()
         self.session.headers.update({
             'Authorization': f'Token {agent_token}',
-            'User-Agent': 'EmpMonitorAgent/1.0',
+            'User-Agent': f'EmpMonitorAgent/{AGENT_VERSION}',
+            'X-Agent-Version': AGENT_VERSION,
         })
         self._queue_dir = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), 'upload_queue'

@@ -36,10 +36,19 @@ from .models import (
 logger = logging.getLogger('monitoring.api')
 
 
+def _get_client_ip(request):
+    """Extract the real client IP, respecting X-Forwarded-For behind Nginx."""
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded:
+        return forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '')
+
+
 def authenticate_agent(request):
     """
     Authenticate an agent using its token from the Authorization header.
     Returns the Employee or None.
+    Also updates the employee's last_ip and agent_version on each check-in.
     """
     auth_header = request.META.get('HTTP_AUTHORIZATION', '')
     if auth_header.startswith('Token '):
@@ -48,7 +57,24 @@ def authenticate_agent(request):
             agent_token = AgentToken.objects.select_related('employee').get(token=token_value)
             agent_token.last_used = timezone.now()
             agent_token.save(update_fields=['last_used'])
-            return agent_token.employee
+
+            employee = agent_token.employee
+            update_fields = []
+
+            client_ip = _get_client_ip(request)
+            if client_ip and employee.last_ip != client_ip:
+                employee.last_ip = client_ip
+                update_fields.append('last_ip')
+
+            agent_ver = request.META.get('HTTP_X_AGENT_VERSION', '')
+            if agent_ver and employee.agent_version != agent_ver:
+                employee.agent_version = agent_ver
+                update_fields.append('agent_version')
+
+            if update_fields:
+                employee.save(update_fields=update_fields)
+
+            return employee
         except AgentToken.DoesNotExist:
             pass
     return None

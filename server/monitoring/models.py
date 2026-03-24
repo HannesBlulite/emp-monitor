@@ -25,6 +25,8 @@ class Employee(models.Model):
     email = models.EmailField(blank=True, default='', help_text="Employee email for daily timesheet reports")
     department = models.CharField(max_length=100, blank=True)
     pc_name = models.CharField(max_length=100, blank=True, help_text="Computer name")
+    last_ip = models.GenericIPAddressField(null=True, blank=True, help_text="Last known IP from agent check-in")
+    agent_version = models.CharField(max_length=20, blank=True, default='', help_text="Agent version reported at last check-in")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

@@ -9,7 +9,7 @@
         <a href="{% url 'monitoring:dashboard' %}">← Dashboard</a>
     </div>
     <h1>{{ employee.display_name }}</h1>
-    <p class="subtitle">{{ employee.department|default:"No department" }} &middot; {{ employee.pc_name|default:"Unknown PC" }} &middot; ID: {{ employee.employee_id }}</p>
+    <p class="subtitle">{{ employee.department|default:"No department" }} &middot; {{ employee.pc_name|default:"Unknown PC" }} &middot; ID: {{ employee.employee_id }}{% if employee.last_ip %} &middot; IP: {{ employee.last_ip }}{% endif %}{% if employee.agent_version %} &middot; Agent v{{ employee.agent_version }}{% endif %}</p>
     {% if request.user.is_staff or request.user.is_superuser %}
     <div class="agent-commands" style="margin-top: 10px;">
         <button class="btn btn-sm btn-outline" id="btn-restart-agent"

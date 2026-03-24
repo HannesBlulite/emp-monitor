@@ -466,6 +466,14 @@ a:hover {
     color: var(--color-text-muted);
 }
 
+.agent-info {
+    display: block;
+    font-size: 11px;
+    color: var(--color-text-muted);
+    font-family: 'Courier New', monospace;
+    margin-top: 2px;
+}
+
 
 /* --- Buttons --- */
 .btn {

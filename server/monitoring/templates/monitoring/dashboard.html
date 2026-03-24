@@ -83,6 +83,11 @@
                     Never connected
                 {% endif %}
             </span>
+            {% if item.employee.last_ip %}
+            <span class="agent-info" title="IP: {{ item.employee.last_ip }}{% if item.employee.agent_version %} | Agent v{{ item.employee.agent_version }}{% endif %}">
+                {{ item.employee.last_ip }}{% if item.employee.agent_version %} &middot; v{{ item.employee.agent_version }}{% endif %}
+            </span>
+            {% endif %}
             <div class="card-footer-actions">
                 {% if is_manager %}
                 <button class="btn btn-sm btn-outline btn-restart-agent"
