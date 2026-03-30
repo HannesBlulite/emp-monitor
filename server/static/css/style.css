@@ -1867,21 +1867,28 @@ select.category-neutral {
     opacity: 0.6;
 }
 
-/* --- Clock Edit Button & Override Badge --- */
+/* --- Clock Cell Layout --- */
+.clock-cell {
+    white-space: nowrap;
+}
+.clock-time {
+    vertical-align: middle;
+}
 .clock-edit-btn {
     background: none;
     border: none;
     color: var(--text-muted);
     cursor: pointer;
-    font-size: 11px;
-    padding: 0 3px;
-    margin-left: 2px;
+    font-size: 13px;
+    padding: 2px 4px;
+    margin-left: 4px;
     opacity: 0;
     transition: opacity 0.15s;
     vertical-align: middle;
+    line-height: 1;
 }
 .timesheet-table tbody tr:hover .clock-edit-btn {
-    opacity: 0.5;
+    opacity: 0.45;
 }
 .clock-edit-btn:hover {
     opacity: 1 !important;
@@ -1889,7 +1896,8 @@ select.category-neutral {
 }
 .clock-override-badge {
     color: var(--color-primary);
-    font-size: 11px;
+    font-size: 12px;
+    margin-left: 3px;
     cursor: default;
     vertical-align: middle;
 }
