@@ -1881,7 +1881,7 @@ select.category-neutral {
     cursor: pointer;
     font-size: 13px;
     padding: 2px 4px;
-    margin-left: 4px;
+    margin-left: 8px;
     opacity: 0;
     transition: opacity 0.15s;
     vertical-align: middle;
