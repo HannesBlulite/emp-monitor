@@ -19,7 +19,7 @@ from django.utils import timezone
 
 from .models import (
     Employee, Screenshot, ActivityLog, AppUsageEntry,
-    ProductivityRule, AgentSettings, AgentToken,
+    ProductivityRule, AgentSettings, AgentToken, ClockTimeOverride,
 )
 
 
@@ -456,6 +456,13 @@ def timesheets(request):
         employees = Employee.objects.filter(user=request.user, is_active=True)
     rows = []
 
+    # Pre-load clock-time overrides for the date range
+    overrides_qs = ClockTimeOverride.objects.filter(
+        date__gte=date_from, date__lte=date_to,
+    )
+    # Build lookup: (employee_id, date) -> override
+    override_map = {(o.employee_id, o.date): o for o in overrides_qs}
+
     # Build one row per employee per date
     num_days = (date_to - date_from).days + 1
     for day_offset in range(num_days):
@@ -478,6 +485,29 @@ def timesheets(request):
             # Convert clock_in/out to SAST for schedule boundary calculations
             ci_local = timezone.localtime(clock_in, LOCAL_TZ)
             co_local = timezone.localtime(clock_out, LOCAL_TZ)
+
+            # Apply clock-time overrides if present
+            override = override_map.get((emp.id, current_date))
+            clock_in_overridden = False
+            clock_out_overridden = False
+            if override:
+                if override.clock_in_override:
+                    ci_local = ci_local.replace(
+                        hour=override.clock_in_override.hour,
+                        minute=override.clock_in_override.minute,
+                        second=override.clock_in_override.second,
+                    )
+                    clock_in = ci_local
+                    clock_in_overridden = True
+                if override.clock_out_override:
+                    co_local = co_local.replace(
+                        hour=override.clock_out_override.hour,
+                        minute=override.clock_out_override.minute,
+                        second=override.clock_out_override.second,
+                    )
+                    clock_out = co_local
+                    clock_out_overridden = True
+
             ci_s = _time_to_secs(ci_local.time())
             co_s = _time_to_secs(co_local.time())
 
@@ -556,6 +586,8 @@ def timesheets(request):
                 'status': status,
                 'clock_in': clock_in,
                 'clock_out': clock_out,
+                'clock_in_overridden': clock_in_overridden,
+                'clock_out_overridden': clock_out_overridden,
                 'total_active': _fmt_duration(total_active),
                 'sched_active': _fmt_duration(sched_active),
                 'sched_productive': _fmt_duration(sched_productive),
@@ -588,6 +620,63 @@ def _fmt_duration(seconds):
     m = (seconds % 3600) // 60
     s = seconds % 60
     return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+@login_required
+def ajax_clock_override(request):
+    """AJAX endpoint: set or clear a clock-in/clock-out override (managers only)."""
+    if not is_manager(request.user):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+        employee_id = data['employee_id']
+        date_str = data['date']     # YYYY-MM-DD
+        field = data['field']       # 'clock_in' or 'clock_out'
+        value = data.get('value')   # 'HH:MM' or null/empty to clear
+        reason = data.get('reason', '')
+
+        if field not in ('clock_in', 'clock_out'):
+            return JsonResponse({'error': 'Invalid field'}, status=400)
+
+        emp = Employee.objects.get(employee_id=employee_id)
+        target_date = date_type.fromisoformat(date_str)
+
+        override, created = ClockTimeOverride.objects.get_or_create(
+            employee=emp, date=target_date,
+            defaults={'overridden_by': request.user},
+        )
+
+        if value:
+            parts = value.strip().split(':')
+            t = time_type(int(parts[0]), int(parts[1]))
+            if field == 'clock_in':
+                override.clock_in_override = t
+            else:
+                override.clock_out_override = t
+        else:
+            # Clear the override for this field
+            if field == 'clock_in':
+                override.clock_in_override = None
+            else:
+                override.clock_out_override = None
+
+        if reason:
+            override.reason = reason
+        override.overridden_by = request.user
+        override.save()
+
+        # If both fields are now None, delete the record
+        if not override.clock_in_override and not override.clock_out_override:
+            override.delete()
+            return JsonResponse({'status': 'cleared'})
+
+        return JsonResponse({'status': 'ok'})
+    except Employee.DoesNotExist:
+        return JsonResponse({'error': 'Employee not found'}, status=404)
+    except (KeyError, ValueError, json.JSONDecodeError) as e:
+        return JsonResponse({'error': f'Invalid request: {e}'}, status=400)
 
 
 @login_required

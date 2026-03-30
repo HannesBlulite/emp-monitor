@@ -1867,6 +1867,33 @@ select.category-neutral {
     opacity: 0.6;
 }
 
+/* --- Clock Edit Button & Override Badge --- */
+.clock-edit-btn {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 11px;
+    padding: 0 3px;
+    margin-left: 2px;
+    opacity: 0;
+    transition: opacity 0.15s;
+    vertical-align: middle;
+}
+.timesheet-table tbody tr:hover .clock-edit-btn {
+    opacity: 0.5;
+}
+.clock-edit-btn:hover {
+    opacity: 1 !important;
+    color: var(--color-primary);
+}
+.clock-override-badge {
+    color: var(--color-primary);
+    font-size: 11px;
+    cursor: default;
+    vertical-align: middle;
+}
+
 /* --- Notification Modal --- */
 .modal-overlay {
     position: fixed;

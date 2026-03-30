@@ -91,8 +91,8 @@
                         {% if row.status == 'on_time' %}On Time{% elif row.status == 'late' %}Late{% elif row.status == 'very_late' %}Very Late{% else %}Absent{% endif %}
                     </span>
                 </td>
-                <td>{{ row.clock_in|date:"H:i"|default:"—" }}</td>
-                <td>{{ row.clock_out|date:"H:i"|default:"—" }}</td>
+                <td>{{ row.clock_in|date:"H:i"|default:"—" }}{% if row.clock_in_overridden %} <span class="clock-override-badge" title="Manually adjusted">✎</span>{% endif %}{% if is_manager %}<button class="clock-edit-btn" data-field="clock_in" data-employee="{{ row.employee.employee_id }}" data-date="{{ row.date|date:'Y-m-d' }}" data-current="{{ row.clock_in|date:'H:i' }}" title="Edit clock-in time">&#9998;</button>{% endif %}</td>
+                <td>{{ row.clock_out|date:"H:i"|default:"—" }}{% if row.clock_out_overridden %} <span class="clock-override-badge" title="Manually adjusted">✎</span>{% endif %}{% if is_manager %}<button class="clock-edit-btn" data-field="clock_out" data-employee="{{ row.employee.employee_id }}" data-date="{{ row.date|date:'Y-m-d' }}" data-current="{{ row.clock_out|date:'H:i' }}" title="Edit clock-out time">&#9998;</button>{% endif %}</td>
                 <td><strong>{{ row.total_active }}</strong></td>
                 <td class="col-schedule col-group-start">{{ row.sched_active }}</td>
                 <td class="col-schedule text-productive">{{ row.sched_productive }}</td>
@@ -151,6 +151,34 @@
         </div>
     </div>
 </div>
+
+{% if is_manager %}
+<!-- Clock Time Edit Modal -->
+<div class="modal-overlay" id="clock-edit-modal" style="display:none;">
+    <div class="modal-dialog" style="max-width: 400px;">
+        <div class="modal-header">
+            <h3 id="clock-edit-title">Edit Clock-In Time</h3>
+            <button class="modal-close" id="clock-edit-close">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label for="clock-edit-time">Time (HH:MM)</label>
+                <input type="time" id="clock-edit-time" class="form-control">
+            </div>
+            <div class="form-group">
+                <label for="clock-edit-reason">Reason (optional)</label>
+                <input type="text" id="clock-edit-reason" class="form-control" placeholder="e.g. PC turned on early, actual start was 05:35">
+            </div>
+            {% csrf_token %}
+            <div style="display:flex;gap:8px;margin-top:12px;">
+                <button class="btn btn-primary" id="clock-edit-save" style="flex:1;">Save</button>
+                <button class="btn btn-outline" id="clock-edit-clear">Reset to Auto</button>
+            </div>
+            <div id="clock-edit-result" style="margin-top:10px;display:none;"></div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 {% endblock %}
 
@@ -387,4 +415,95 @@
 
 })();
 </script>
+{% if is_manager %}
+<script>
+(function() {
+    var clockModal = document.getElementById('clock-edit-modal');
+    if (!clockModal) return;
+
+    var clockTitle = document.getElementById('clock-edit-title');
+    var clockTime = document.getElementById('clock-edit-time');
+    var clockReason = document.getElementById('clock-edit-reason');
+    var clockSave = document.getElementById('clock-edit-save');
+    var clockClear = document.getElementById('clock-edit-clear');
+    var clockClose = document.getElementById('clock-edit-close');
+    var clockResult = document.getElementById('clock-edit-result');
+    var csrfToken = clockModal.querySelector('[name=csrfmiddlewaretoken]').value;
+
+    var activeField = '';
+    var activeEmployee = '';
+    var activeDate = '';
+
+    // Open modal when clicking any edit button
+    document.addEventListener('click', function(e) {
+        var btn = e.target.closest('.clock-edit-btn');
+        if (!btn) return;
+        e.preventDefault();
+        activeField = btn.getAttribute('data-field');
+        activeEmployee = btn.getAttribute('data-employee');
+        activeDate = btn.getAttribute('data-date');
+        var current = btn.getAttribute('data-current');
+
+        clockTitle.textContent = activeField === 'clock_in' ? 'Edit Clock-In Time' : 'Edit Clock-Out Time';
+        clockTime.value = current || '';
+        clockReason.value = '';
+        clockResult.style.display = 'none';
+        clockModal.style.display = 'flex';
+        clockTime.focus();
+    });
+
+    clockClose.addEventListener('click', function() { clockModal.style.display = 'none'; });
+    clockModal.addEventListener('click', function(e) {
+        if (e.target === clockModal) clockModal.style.display = 'none';
+    });
+
+    function sendOverride(value) {
+        clockSave.disabled = true;
+        clockClear.disabled = true;
+        fetch('{% url "monitoring:ajax_clock_override" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken,
+            },
+            body: JSON.stringify({
+                employee_id: activeEmployee,
+                date: activeDate,
+                field: activeField,
+                value: value,
+                reason: clockReason.value.trim(),
+            }),
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.status === 'ok' || data.status === 'cleared') {
+                // Reload to show updated times and recalculated overtime
+                window.location.reload();
+            } else {
+                clockResult.style.display = 'block';
+                clockResult.innerHTML = '<span style="color:var(--unproductive);">Error: ' + (data.error || 'Unknown error') + '</span>';
+            }
+        })
+        .catch(function(err) {
+            clockResult.style.display = 'block';
+            clockResult.innerHTML = '<span style="color:var(--unproductive);">Error: ' + err.message + '</span>';
+        })
+        .finally(function() {
+            clockSave.disabled = false;
+            clockClear.disabled = false;
+        });
+    }
+
+    clockSave.addEventListener('click', function() {
+        var val = clockTime.value;
+        if (!val) { clockTime.focus(); return; }
+        sendOverride(val);
+    });
+
+    clockClear.addEventListener('click', function() {
+        sendOverride('');
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

@@ -20,6 +20,7 @@ from django.utils import timezone
 
 from monitoring.models import (
     Employee, ActivityLog, AppUsageEntry, ProductivityRule,
+    ClockTimeOverride,
 )
 
 LOCAL_TZ = zoneinfo.ZoneInfo('Africa/Johannesburg')
@@ -95,6 +96,27 @@ def build_timesheet_row(emp, target_date, app_rules, domain_rules):
 
     ci_local = timezone.localtime(clock_in, LOCAL_TZ)
     co_local = timezone.localtime(clock_out, LOCAL_TZ)
+
+    # Apply clock-time overrides if present
+    try:
+        override = ClockTimeOverride.objects.get(employee=emp, date=target_date)
+        if override.clock_in_override:
+            ci_local = ci_local.replace(
+                hour=override.clock_in_override.hour,
+                minute=override.clock_in_override.minute,
+                second=override.clock_in_override.second,
+            )
+            clock_in = ci_local
+        if override.clock_out_override:
+            co_local = co_local.replace(
+                hour=override.clock_out_override.hour,
+                minute=override.clock_out_override.minute,
+                second=override.clock_out_override.second,
+            )
+            clock_out = co_local
+    except ClockTimeOverride.DoesNotExist:
+        pass
+
     ci_s = _time_to_secs(ci_local.time())
     co_s = _time_to_secs(co_local.time())
 

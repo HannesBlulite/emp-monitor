@@ -289,3 +289,37 @@ class AgentCommand(models.Model):
     def __str__(self):
         status = 'done' if self.acknowledged_at else 'pending'
         return f"[{status}] {self.command} → {self.employee.display_name}"
+
+
+class ClockTimeOverride(models.Model):
+    """
+    Manual override for an employee's clock-in or clock-out time on a specific date.
+    When present, the overridden time is used instead of the auto-detected
+    Min/Max of ActivityLog.created_at.
+    """
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='clock_overrides')
+    date = models.DateField(help_text="The date this override applies to")
+    clock_in_override = models.TimeField(
+        null=True, blank=True,
+        help_text="Override clock-in time (local SAST). Leave blank to keep auto-detected."
+    )
+    clock_out_override = models.TimeField(
+        null=True, blank=True,
+        help_text="Override clock-out time (local SAST). Leave blank to keep auto-detected."
+    )
+    reason = models.CharField(max_length=200, blank=True, help_text="Reason for the override")
+    overridden_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['employee', 'date']
+        ordering = ['-date']
+
+    def __str__(self):
+        parts = []
+        if self.clock_in_override:
+            parts.append(f"in={self.clock_in_override.strftime('%H:%M')}")
+        if self.clock_out_override:
+            parts.append(f"out={self.clock_out_override.strftime('%H:%M')}")
+        return f"Override {self.employee.display_name} {self.date}: {', '.join(parts)}"

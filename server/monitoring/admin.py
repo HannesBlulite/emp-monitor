@@ -6,7 +6,7 @@ from django.contrib import admin
 from .models import (
     Employee, AgentToken, Screenshot, ActivityLog,
     AppUsageEntry, ProductivityRule, AgentSettings, AgentPackage,
-    Notification, AgentCommand,
+    Notification, AgentCommand, ClockTimeOverride,
 )
 
 
@@ -80,3 +80,10 @@ class AgentCommandAdmin(admin.ModelAdmin):
     list_filter = ['command', 'acknowledged_at']
     search_fields = ['employee__display_name']
     readonly_fields = ['created_at']
+
+
+@admin.register(ClockTimeOverride)
+class ClockTimeOverrideAdmin(admin.ModelAdmin):
+    list_display = ['employee', 'date', 'clock_in_override', 'clock_out_override', 'reason', 'overridden_by']
+    list_filter = ['date', 'employee']
+    search_fields = ['employee__display_name', 'reason']

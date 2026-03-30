@@ -18,6 +18,7 @@ urlpatterns = [
     # AJAX endpoints for inline rule editing
     path('api/rules/update-category/', views.ajax_update_rule_category, name='ajax_update_rule_category'),
     path('api/rules/bulk-action/', views.ajax_bulk_rule_action, name='ajax_bulk_rule_action'),
+    path('api/clock-override/', views.ajax_clock_override, name='ajax_clock_override'),
 
     # API endpoints (for agent communication)
     path('api/screenshots/upload/', api_views.screenshot_upload, name='api_screenshot_upload'),
