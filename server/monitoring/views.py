@@ -508,6 +508,12 @@ def timesheets(request):
                     clock_out = co_local
                     clock_out_overridden = True
 
+            # Re-filter activity logs to respect overridden boundaries
+            if clock_in_overridden:
+                logs = logs.filter(created_at__gte=ci_local)
+            if clock_out_overridden:
+                logs = logs.filter(created_at__lte=co_local)
+
             ci_s = _time_to_secs(ci_local.time())
             co_s = _time_to_secs(co_local.time())
 

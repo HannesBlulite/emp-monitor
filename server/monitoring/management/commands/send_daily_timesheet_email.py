@@ -117,6 +117,12 @@ def build_timesheet_row(emp, target_date, app_rules, domain_rules):
     except ClockTimeOverride.DoesNotExist:
         pass
 
+    # Re-filter activity logs to respect overridden boundaries
+    if clock_in != times['clock_in']:
+        logs = logs.filter(created_at__gte=ci_local)
+    if clock_out != times['clock_out']:
+        logs = logs.filter(created_at__lte=co_local)
+
     ci_s = _time_to_secs(ci_local.time())
     co_s = _time_to_secs(co_local.time())
 
