@@ -90,11 +90,23 @@ def get_browser_url(hwnd: int) -> str:
 def _get_url_via_uia(hwnd: int) -> str:
     """Try to extract URL using UI Automation."""
     try:
-        import comtypes.client as cc
+        import comtypes
+        import comtypes.client
 
-        uia = cc.CreateObject(
-            '{ff48dba4-60ef-4201-aa87-54103eef594e}',
-            interface=None,
+        # COM must be initialised per-thread; safe to call multiple times.
+        comtypes.CoInitialize()
+
+        # Generate type-library wrappers so we get the real IUIAutomation
+        # interface (not a bare IUnknown pointer).
+        comtypes.client.GetModule('UIAutomationCore.dll')
+        from comtypes.gen.UIAutomationClient import (
+            CUIAutomation,
+            IUIAutomation,
+        )
+        uia = comtypes.CoCreateInstance(
+            CUIAutomation._reg_clsid_,
+            interface=IUIAutomation,
+            clsctx=comtypes.CLSCTX_INPROC_SERVER,
         )
 
         element = uia.ElementFromHandle(hwnd)
@@ -114,6 +126,13 @@ def _get_url_via_uia(hwnd: int) -> str:
 def _get_url_via_msaa(hwnd: int) -> str:
     """Try to extract URL using Win32 IAccessible (MSAA) via oleacc."""
     try:
+        # Ensure COM is initialised for this thread.
+        try:
+            import comtypes
+            comtypes.CoInitialize()
+        except ImportError:
+            pass  # MSAA via ctypes may still work
+
         import ctypes
         import ctypes.wintypes
         from ctypes import oledll, byref, POINTER, c_long, c_uint
@@ -214,6 +233,7 @@ def _find_address_bar_value(uia, element) -> str:
 
         best_candidate = ''
         from comtypes import COMError
+        from comtypes.gen.UIAutomationClient import IUIAutomationValuePattern
 
         for i in range(found.Length):
             child = found.GetElement(i)
@@ -223,7 +243,8 @@ def _find_address_bar_value(uia, element) -> str:
                     continue
 
                 try:
-                    value = pattern.CurrentValue
+                    vp = pattern.QueryInterface(IUIAutomationValuePattern)
+                    value = vp.CurrentValue
                 except (AttributeError, COMError):
                     continue
 

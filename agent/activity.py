@@ -169,11 +169,25 @@ class ActivityTracker:
                         url = get_browser_url(hwnd)
                         if url:
                             domain = extract_domain(url)
+                            logger.debug(
+                                f"Browser URL detected: {domain} "
+                                f"(from {url[:80]})"
+                            )
                     # Fallback: try to extract from window title
                     if not domain:
                         domain = extract_domain_from_title(
                             window_info.get('window_title', ''),
                             process_name,
+                        )
+                        if domain:
+                            logger.debug(
+                                f"Domain from title fallback: {domain}"
+                            )
+                    if not domain:
+                        logger.debug(
+                            f"Browser detected ({process_name}) but no domain "
+                            f"extracted. Title: "
+                            f"{window_info.get('window_title', '')[:80]}"
                         )
                     if domain:
                         self.domain_usage[domain] += elapsed

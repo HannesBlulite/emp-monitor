@@ -137,6 +137,7 @@ class EmpMonitorAgent:
         self.config = config
         self.logger = logging.getLogger('emp_agent')
         self.running = False
+        self._restart_pending = False
 
         # Initialize components
         self.communicator = ServerCommunicator(
@@ -172,6 +173,7 @@ class EmpMonitorAgent:
         try:
             if repair_install(self.config['server_url'], self.communicator.session):
                 self.logger.info("Repair installed missing files, restarting...")
+                self._restart_pending = True
                 restart_agent()
                 return
         except Exception as e:
@@ -352,6 +354,7 @@ class EmpMonitorAgent:
 
                     if cmd_type == 'restart':
                         self.logger.info("Remote restart requested — restarting agent...")
+                        self._restart_pending = True
                         self.stop()
                         restart_agent()
                         return
@@ -369,12 +372,14 @@ class EmpMonitorAgent:
                                 result['download_url'],
                             ):
                                 self.logger.info("Update applied via remote command, restarting...")
+                                self._restart_pending = True
                                 self.stop()
                                 restart_agent()
                                 return
                         else:
                             # No update available, just restart
                             self.logger.info("No update available — restarting agent anyway")
+                            self._restart_pending = True
                             self.stop()
                             restart_agent()
                             return
@@ -406,6 +411,7 @@ class EmpMonitorAgent:
                         result['download_url'],
                     ):
                         self.logger.info("Update applied, restarting...")
+                        self._restart_pending = True
                         self.stop()
                         restart_agent()
                         return
@@ -453,7 +459,12 @@ def main():
     If the agent crashes for any reason, it logs the error and restarts
     after a short backoff delay.  The delay grows from 10 s to a max of
     5 minutes, and resets after 60 s of successful running.
+
+    When a restart is requested (update / remote command), the process
+    exits with code 42 so Task Scheduler's RestartCount re-launches it
+    as a safety net (in addition to the detached restart script).
     """
+    RESTART_EXIT_CODE = 42
     MAX_BACKOFF = 300  # 5 minutes
     INITIAL_BACKOFF = 10
     STABLE_AFTER = 60  # reset backoff after running this long
@@ -468,10 +479,26 @@ def main():
         try:
             agent = EmpMonitorAgent(config)
             agent.start()
-            # start() only returns on clean shutdown (Ctrl-C)
+            # start() returned — check why
+            if agent._restart_pending:
+                logger.info(
+                    "Restart requested — exiting with code %d for "
+                    "Task Scheduler safety net",
+                    RESTART_EXIT_CODE,
+                )
+                sys.exit(RESTART_EXIT_CODE)
+            # Unexpected return — treat as crash and restart
+            logger.warning(
+                "Agent stopped unexpectedly — restarting in %d s", backoff
+            )
+            time.sleep(backoff)
+            config = load_config()
+            continue
+        except KeyboardInterrupt:
+            logger.info("Ctrl+C — clean shutdown")
             break
         except SystemExit:
-            break
+            raise  # Preserve exit code (e.g. 42) for Task Scheduler
         except Exception:
             elapsed = time.time() - start_ts
             logger.critical(

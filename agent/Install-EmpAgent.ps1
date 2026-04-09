@@ -223,7 +223,7 @@ $action  = New-ScheduledTaskAction `
 $triggerLogon = New-ScheduledTaskTrigger -AtLogOn
 
 $triggerRepeat = New-ScheduledTaskTrigger -Once -At '00:00' `
-    -RepetitionInterval (New-TimeSpan -Minutes 15)
+    -RepetitionInterval (New-TimeSpan -Minutes 5)
 
 $settings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries `
@@ -243,7 +243,7 @@ Register-ScheduledTask `
     -RunLevel Limited `
     -Force | Out-Null
 
-Write-Ok "Scheduled task '$TaskName' registered (runs at logon + watchdog every 15 min)"
+Write-Ok "Scheduled task '$TaskName' registered (runs at logon + watchdog every 5 min)"
 
 # ── Step 6: Start the agent now ─────────────────────────────────────────
 Write-Step 'Starting agent'

@@ -178,13 +178,14 @@ def restart_agent():
     """
     Restart the agent process via Task Scheduler.
 
-    Uses a temporary .cmd script launched in a new process group so that
-    it survives when Task Scheduler kills the agent's process tree during
-    Stop-ScheduledTask.
+    Launches a detached .cmd script that waits for the current process to
+    exit, then uses ``schtasks /Run`` to re-launch the scheduled task.
+    The calling code also exits with a non-zero code (42) so that
+    Task Scheduler's own RestartCount kicks in as a safety net if
+    the .cmd script fails.
     """
     logger.info("Restarting agent via Task Scheduler...")
     try:
-        # Write a self-deleting restart script
         restart_script = os.path.join(tempfile.gettempdir(), 'emp_agent_restart.cmd')
         with open(restart_script, 'w') as f:
             f.write('@echo off\r\n')
@@ -192,9 +193,12 @@ def restart_agent():
             f.write('schtasks /End /TN EmpMonitorAgent 2>nul\r\n')
             f.write('timeout /t 3 /nobreak >nul\r\n')
             f.write('schtasks /Run /TN EmpMonitorAgent\r\n')
-            f.write(f'del "%~f0"\r\n')
+            f.write('if %errorlevel% neq 0 (\r\n')
+            f.write('  timeout /t 15 /nobreak >nul\r\n')
+            f.write('  schtasks /Run /TN EmpMonitorAgent\r\n')
+            f.write(')\r\n')
+            f.write('del "%~f0"\r\n')
 
-        # Launch via cmd.exe in a completely new process group
         subprocess.Popen(
             ['cmd.exe', '/c', restart_script],
             creationflags=(
@@ -204,9 +208,6 @@ def restart_agent():
             ),
             close_fds=True,
         )
+        logger.info("Restart script launched successfully")
     except Exception as e:
-        logger.error(f"Restart via Task Scheduler failed: {e}")
-        # Fallback: just restart the Python process
-        logger.info("Falling back to direct process restart")
-        python = sys.executable
-        os.execv(python, [python] + sys.argv)
+        logger.error(f"Restart script failed: {e} — relying on Task Scheduler RestartCount")

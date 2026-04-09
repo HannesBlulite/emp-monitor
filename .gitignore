@@ -66,3 +66,25 @@ DEPLOYMENT_NOTES.local.md
 # Misc
 image/
 Productivity Rule (1).xlsx
+
+# Ad-hoc debug/diagnostic scripts (session artifacts)
+agent/test_*.py
+scripts/check_all_activity.py
+scripts/check_commands.py
+scripts/check_domains_prod.py
+scripts/check_janelda*.py
+scripts/check_jeandri.py
+scripts/db_check.py
+scripts/deploy_package.py
+scripts/deploy_v*.py
+scripts/diagnose_domains.py
+scripts/domain_timeline.py
+scripts/fix_package_path.py
+scripts/fix_stuck_updates.py
+scripts/force_update_all.py
+scripts/get_token.py
+scripts/issue_updates.py
+scripts/status_check.py
+scripts/ver_check*.py
+scripts/verify_package.py
+server/_check_domains.py
