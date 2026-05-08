@@ -606,8 +606,8 @@ def timesheets(request):
                 'ot_prod_pct': ot_prod_pct,
             })
 
-    # Default sort: most recent date first, then name
-    rows.sort(key=lambda r: (-r['date'].toordinal(), r['employee'].display_name))
+    # Default sort: most recent date first, then employee display_order, then name
+    rows.sort(key=lambda r: (-r['date'].toordinal(), r['employee'].display_order, r['employee'].display_name))
 
     context = {
         'rows': rows,
