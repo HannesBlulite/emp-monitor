@@ -29,11 +29,12 @@ class Employee(models.Model):
     local_ip = models.GenericIPAddressField(null=True, blank=True, help_text="LAN IP reported by agent")
     agent_version = models.CharField(max_length=20, blank=True, default='', help_text="Agent version reported at last check-in")
     is_active = models.BooleanField(default=True)
+    display_order = models.IntegerField(default=0, help_text="Sort order for timesheets and employee lists (lower = first)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['display_name']
+        ordering = ['display_order', 'display_name']
 
     def __str__(self):
         return f"{self.display_name} ({self.employee_id})"
