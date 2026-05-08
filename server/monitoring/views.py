@@ -62,7 +62,7 @@ def dashboard(request):
     user_is_manager = is_manager(request.user)
 
     if user_is_manager:
-        employees = Employee.objects.filter(is_active=True).order_by('display_name')
+        employees = Employee.objects.filter(is_active=True).order_by('display_order', 'display_name')
     else:
         employees = Employee.objects.filter(user=request.user, is_active=True)
 
@@ -451,7 +451,7 @@ def timesheets(request):
         return productive, unproductive, neutral
 
     if user_is_manager:
-        employees = Employee.objects.filter(is_active=True).order_by('display_name')
+        employees = Employee.objects.filter(is_active=True).order_by('display_order', 'display_name')
     else:
         employees = Employee.objects.filter(user=request.user, is_active=True)
     rows = []
@@ -743,7 +743,7 @@ def settings_view(request):
         from django.http import HttpResponseForbidden
         return HttpResponseForbidden('Access denied.')
     settings = AgentSettings.get_settings()
-    employees = Employee.objects.all().order_by('display_name')
+    employees = Employee.objects.all().order_by('display_order', 'display_name')
 
     action_to_section = {
         'update_settings': 'agent-config',
@@ -850,7 +850,7 @@ def settings_view(request):
     page = max(1, min(page, total_pages))
     rules = rules_qs[(page - 1) * per_page: page * per_page]
 
-    employees = Employee.objects.all().order_by('display_name')
+    employees = Employee.objects.all().order_by('display_order', 'display_name')
     employee_tokens = []
     for emp in employees:
         token = AgentToken.objects.filter(employee=emp).first()

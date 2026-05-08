@@ -210,7 +210,7 @@ class Command(BaseCommand):
             for r in ProductivityRule.objects.filter(match_type='domain')
         }
 
-        employees = Employee.objects.filter(is_active=True).exclude(email='')
+        employees = Employee.objects.filter(is_active=True).exclude(email='').order_by('display_order', 'display_name')
         sent = 0
         skipped = 0
 
