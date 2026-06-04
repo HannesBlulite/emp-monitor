@@ -567,18 +567,24 @@ def timesheets(request):
             )
             ot_active = (ot_agg['a'] or 0) + (ot_agg['i'] or 0)
 
-            # Productivity percentages — productive / classified time
-            # (productive + unproductive + neutral). Idle and untracked
-            # time are excluded from both numerator and denominator.
-            sched_classified = sched_productive + sched_unproductive + sched_neutral
-            ot_classified = ot_productive + ot_unproductive + ot_neutral
+            # Productivity percentages — productive work over the
+            # available working window.
+            #
+            # Schedule: productive time measured against the FULL standard
+            # work day (07:00–15:30), regardless of when the employee
+            # actually clocked in/out. So arriving late, leaving early, or
+            # sitting dormant all lower the score. E.g. 2h productive out
+            # of the 8.5h day → ~24%.
+            schedule_window_secs = SCHED_END_S - SCHED_START_S
             sched_prod_pct = (
-                round(sched_productive / sched_classified * 100, 1)
-                if sched_classified > 0 else 0
+                round(min(100.0, sched_productive / schedule_window_secs * 100), 1)
+                if schedule_window_secs > 0 else 0
             )
+            # Overtime: productive time measured against the actual overtime
+            # worked (the visible TOTAL overtime column).
             ot_prod_pct = (
-                round(ot_productive / ot_classified * 100, 1)
-                if ot_classified > 0 else 0
+                round(min(100.0, ot_productive / total_ot_secs * 100), 1)
+                if total_ot_secs > 0 else 0
             )
 
             # Attendance status based on SAST clock-in time
