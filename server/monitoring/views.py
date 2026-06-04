@@ -567,14 +567,18 @@ def timesheets(request):
             )
             ot_active = (ot_agg['a'] or 0) + (ot_agg['i'] or 0)
 
-            # Productivity percentages (productive / desk time)
+            # Productivity percentages — productive / classified time
+            # (productive + unproductive + neutral). Idle and untracked
+            # time are excluded from both numerator and denominator.
+            sched_classified = sched_productive + sched_unproductive + sched_neutral
+            ot_classified = ot_productive + ot_unproductive + ot_neutral
             sched_prod_pct = (
-                round(sched_productive / sched_active * 100, 1)
-                if sched_active > 0 else 0
+                round(sched_productive / sched_classified * 100, 1)
+                if sched_classified > 0 else 0
             )
             ot_prod_pct = (
-                round(ot_productive / ot_active * 100, 1)
-                if ot_active > 0 else 0
+                round(ot_productive / ot_classified * 100, 1)
+                if ot_classified > 0 else 0
             )
 
             # Attendance status based on SAST clock-in time
