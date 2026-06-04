@@ -580,11 +580,13 @@ def timesheets(request):
                 round(min(100.0, sched_productive / schedule_window_secs * 100), 1)
                 if schedule_window_secs > 0 else 0
             )
-            # Overtime: productive time measured against the actual overtime
-            # worked (the visible TOTAL overtime column).
+            # Overtime: productive time measured against the actual desk-active
+            # overtime (the visible OT Active column). This reflects real work
+            # rather than wall-clock time, so leaving the PC on after hours does
+            # not distort the score.
             ot_prod_pct = (
-                round(min(100.0, ot_productive / total_ot_secs * 100), 1)
-                if total_ot_secs > 0 else 0
+                round(min(100.0, ot_productive / ot_active * 100), 1)
+                if ot_active > 0 else 0
             )
 
             # Attendance status based on SAST clock-in time
@@ -612,6 +614,7 @@ def timesheets(request):
                 'early_ot': _fmt_duration(early_ot_secs),
                 'late_ot': _fmt_duration(late_ot_secs),
                 'total_ot': _fmt_duration(total_ot_secs),
+                'ot_active': _fmt_duration(ot_active),
                 'ot_productive': _fmt_duration(ot_productive),
                 'ot_prod_pct': ot_prod_pct,
             })
