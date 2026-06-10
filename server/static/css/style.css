@@ -224,6 +224,27 @@ a:hover {
     margin-bottom: var(--space-xs);
 }
 
+.employee-title-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+}
+
+.employee-title-row h1 {
+    margin-bottom: 0;
+}
+
+.employee-switcher {
+    padding: var(--space-xs) var(--space-sm);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+}
+
 .page-header .subtitle {
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);

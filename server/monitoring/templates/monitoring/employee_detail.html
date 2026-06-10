@@ -8,7 +8,23 @@
     <div class="breadcrumb">
         <a href="{% url 'monitoring:dashboard' %}">← Dashboard</a>
     </div>
-    <h1>{{ employee.display_name }}</h1>
+    <div class="employee-title-row">
+        <h1>{{ employee.display_name }}</h1>
+        {% if all_employees %}
+        <select id="employee-switcher"
+                class="employee-switcher"
+                onchange="if(this.value){window.location.href=this.value;}"
+                title="Switch to another employee">
+            <option value="">Switch employee…</option>
+            {% for emp in all_employees %}
+            <option value="{% url 'monitoring:employee_detail' emp.employee_id %}{% if selected_date %}?date={{ selected_date|date:'Y-m-d' }}{% endif %}"
+                    {% if emp.employee_id == employee.employee_id %}selected{% endif %}>
+                {{ emp.display_name }}
+            </option>
+            {% endfor %}
+        </select>
+        {% endif %}
+    </div>
     <p class="subtitle">{{ employee.department|default:"No department" }} &middot; {{ employee.pc_name|default:"Unknown PC" }} &middot; ID: {{ employee.employee_id }}{% if employee.local_ip %} &middot; LAN: {{ employee.local_ip }}{% endif %}{% if employee.last_ip %} &middot; WAN: {{ employee.last_ip }}{% endif %}{% if employee.agent_version %} &middot; v{{ employee.agent_version }}{% endif %}</p>
     {% if request.user.is_staff or request.user.is_superuser %}
     <div class="agent-commands" style="margin-top: 10px;">

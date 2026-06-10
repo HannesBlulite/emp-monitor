@@ -316,8 +316,17 @@ def employee_detail(request, employee_id):
 
     total_day_screenshots = all_day_screenshots.count()
 
+    # List of other employees for the quick-switch dropdown (managers only)
+    if is_manager(request.user):
+        all_employees = Employee.objects.filter(is_active=True).order_by(
+            'display_order', 'display_name'
+        )
+    else:
+        all_employees = Employee.objects.none()
+
     context = {
         'employee': employee,
+        'all_employees': all_employees,
         'selected_date': selected_date,
         'screenshots': screenshots,
         'activity_logs': activity_logs,
